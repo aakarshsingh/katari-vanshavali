@@ -356,7 +356,7 @@ function drawBox(group, boxX, y, h, box, gender, role, emphasis, depth) {
       class: cls,
       x: cx, y: top + i * M.LINE_NAME + M.LINE_NAME / 2,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': 14, fill: INK,
+      'font-size': 15, 'font-weight': 500, fill: INK,
     });
     t.textContent = line;
     t.setAttribute('font-family', FONT);

@@ -99,7 +99,7 @@ describe('computeGroupedLayout (variable width + couples)', () => {
   });
 });
 
-describe('2-row child packing (T6)', () => {
+describe('one row per generation', () => {
   function family(childCount) {
     const persons = [{ id: 'F' }, { id: 'P' }];
     const rels = [{ parent_id: 'F', child_id: 'P' }];
@@ -110,17 +110,12 @@ describe('2-row child packing (T6)', () => {
     return { persons, rels };
   }
 
-  test('a family with 3+ children packs into exactly two rows', () => {
-    const { persons, rels } = family(3);
-    const layout = computeGroupedLayout(persons, rels, 'F');
-    const kidYs = new Set(layout.filter(n => n.id.startsWith('k')).map(n => n.y));
-    expect(kidYs.size).toBe(2);
-  });
-
-  test('a small family (<=2) stays on one row', () => {
-    const { persons, rels } = family(2);
-    const layout = computeGroupedLayout(persons, rels, 'F');
-    const kidYs = new Set(layout.filter(n => n.id.startsWith('k')).map(n => n.y));
-    expect(kidYs.size).toBe(1);
+  test('all children of a parent share one row (single line per generation)', () => {
+    for (const n of [2, 3, 5, 8]) {
+      const { persons, rels } = family(n);
+      const layout = computeGroupedLayout(persons, rels, 'F');
+      const kidYs = new Set(layout.filter((p) => p.id.startsWith('k')).map((p) => p.y));
+      expect(kidYs.size).toBe(1);
+    }
   });
 });

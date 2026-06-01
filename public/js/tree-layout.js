@@ -194,16 +194,12 @@ function splitTree(persons, relationships, focalNameEn) {
 // Each top-level branch (direct child of focal) becomes a self-contained group.
 // Within each group, children pack into a 2-row grid (see colsFor) and centre.
 
-// T6: pack a family's children into a 2-row grid (cols = ceil(n/2)) once a
-// family has more than ROW2_THRESHOLD children — fits more horizontally.
-// Threshold 2 → families of 3+ stagger into two rows (compresses gen 3+).
-const ROW2_THRESHOLD = 2;
-const GROUP_GAP  = 30;  // horizontal gap between top-level groups (T12: tightened)
+const GROUP_GAP  = 30;  // horizontal gap between top-level groups
 
-// Number of columns to use for a set of n children.
+// Each generation stays on ONE row (single line). Box width is strict and names
+// wrap, so we no longer pack children into multiple rows.
 function colsFor(n) {
-  if (n <= ROW2_THRESHOLD) return n;     // small families stay on one row
-  return Math.ceil(n / 2);               // otherwise fill two rows
+  return n;
 }
 
 // Recursively lays out a subtree rooted at nodeId.
