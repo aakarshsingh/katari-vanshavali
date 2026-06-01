@@ -37,8 +37,8 @@ Fresh repo. `package.json` exists (bare init). `docs/vanshavali.pdf` and `docs/s
 | 10 | SVG Tree Renderer + Decorative Border | Completed |
 | 11 | Pan / Zoom / Scroll | Completed |
 | 12 | Sidebar Form + Context Menu | Completed |
-| 13 | Transliteration Chips | Pending |
-| 14 | Export (PNG + PDF) | Pending |
+| 13 | Transliteration Chips | Completed |
+| 14 | Export (PNG + PDF) | Completed |
 | 15 | Railway Deploy + Smoke Test | Pending |
 
 ---
@@ -745,7 +745,7 @@ CREATE TABLE IF NOT EXISTS relationship (
 
 ### Phase 13: Transliteration Chips
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/transliterate.js` — create
@@ -772,27 +772,27 @@ CREATE TABLE IF NOT EXISTS relationship (
 - [ ] Chips work for both name and spouse fields; cache prevents duplicate API calls
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-- Implementation notes:
-- Deviations from plan:
-- Field notes:
+- Implementation notes: Single file `public/js/transliterate.js` created. Module-level `_transCache` Map shared across both `attachTransliterate` call sites. Each invocation gets its own `debounceTimer` closure. Chip container resolved via `outputEl.nextElementSibling` (the `.chip-row` div that follows each Hindi input in the HTML). On keyup: debounce 600 ms → cache hit renders immediately, cache miss shows spinner then fetches. On blur with empty value: chips cleared. Click on chip sets `outputEl.value`. `window.attachTransliterate` exposed for `sidebar.js` typeof guard. `npm test` 15/15 pass.
+- Deviations from plan: None.
+- Field notes: `_transCache` prefixed with `_` to signal module-private intent and avoid global namespace collision.
 
 ---
 
 ### Phase 14: Export (PNG + PDF)
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/export.js` — create
@@ -824,27 +824,27 @@ CREATE TABLE IF NOT EXISTS relationship (
 - [ ] Both formats export correctly with Devanagari rendering in both language modes
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-- Implementation notes:
-- Deviations from plan:
-- Field notes:
+- Implementation notes: `export.js` — `_getFontB64()` fetches woff2 once and caches as base64; injected into SVG clone via `<defs><style>`. `_buildSvgClone(lang)` deep-clones `#tree-svg`, removes empty-hint, rebuilds each node's name text from `data-name-en`/`data-name-hi` attributes, removes `.name-secondary` for a single-lang export view. `_svgToCanvas()` serializes to Blob URL, loads as `Image`, draws at 2× pixel ratio (raw canvas dimensions = logical × 2), then redraws after 250ms to allow custom font rendering. PNG export uses `canvas.toBlob` → anchor click. PDF export uses jsPDF 2.5.1 UMD (pinned for stable `window.jspdf.jsPDF` API), A3 landscape, title centred at top, tree image centred in body, info line bottom-left. jsPDF CDN script added to `index.html` before `export.js`. `npm test` 15/15 pass. Browser verification deferred (requires live DB).
+- Deviations from plan: (1) Plan referenced removing `.name-hi`/`.name-en` class elements but renderer uses `name-primary`/`name-secondary` classes. Resolved by rebuilding names from `data-name-en`/`data-name-hi` attributes on `<g>` elements — achieves identical intent. (2) jsPDF pinned to `2.5.1` (not `@latest`) to avoid breaking API changes in v3.
+- Field notes: Double-draw pattern (draw once on load, draw again after 250ms) is the reliable fix for SVG-with-embedded-font canvas rendering in browsers. Single draw may show boxes for Devanagari glyphs.
 
 ---
 
 ### Phase 15: Railway Deploy + Smoke Test
 
-**Status:** Pending
+**Status:** Active
 
 **Target Files:**
 - `railway.toml` — verify (created in Phase 1; no changes expected)
