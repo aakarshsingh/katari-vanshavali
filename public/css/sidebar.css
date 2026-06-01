@@ -188,3 +188,25 @@
   color: var(--ink-faint, #9a8a70);
   font-style: italic;
 }
+
+/* Group the spouse sub-section with a distinct tinted panel (visual ease) */
+#spouse-fields {
+  background: rgba(140, 110, 70, 0.07);
+  border: 1px solid var(--border, #c8b89a);
+  border-radius: 5px;
+  padding: 12px 12px 2px;
+  margin-bottom: 14px;
+}
+#spouse-fields[hidden] { display: none; }
+
+/* Deceased toggle + death fields: muted grey so they recede by design */
+.deceased-toggle {
+  color: #9a9388 !important;
+  font-weight: 400 !important;
+  font-size: 0.8rem;
+}
+.deceased-toggle input { accent-color: #9a9388; }
+#death-field label,
+#spouse-death-field label { color: #9a9388; }
+#death-field input,
+#spouse-death-field input { color: #6f685e; border-color: #d8d0c2; }

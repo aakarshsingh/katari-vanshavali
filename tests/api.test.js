@@ -1,5 +1,7 @@
 const request = require('supertest');
 
+process.env.ANTHROPIC_API_KEY = 'test-key'; // transliterate route requires it
+
 jest.mock('../src/db/client', () => ({ query: jest.fn() }));
 jest.mock('@anthropic-ai/sdk', () => {
   return jest.fn().mockImplementation(() => ({

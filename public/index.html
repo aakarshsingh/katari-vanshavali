@@ -19,6 +19,10 @@
       <button id="btn-help" class="toolbar-btn" title="Controls &amp; help">
         <i data-lucide="help-circle"></i>
       </button>
+      <button id="btn-lock" class="toolbar-btn" title="Locked — click to enable editing" aria-pressed="true">
+        <i data-lucide="lock"></i>
+        <span id="lock-label">Locked</span>
+      </button>
     </div>
 
     <div class="toolbar-center">
@@ -91,10 +95,16 @@
             <label for="f-birth">Birth year</label>
             <input type="number" id="f-birth" name="birth_year" min="1000" max="2100" />
           </div>
-          <div class="form-group">
+          <div class="form-group" id="death-field" hidden>
             <label for="f-death">Death year</label>
             <input type="number" id="f-death" name="death_year" min="1000" max="2100" />
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="check-label deceased-toggle">
+            <input type="checkbox" id="f-deceased" /> Deceased
+          </label>
         </div>
 
         <div class="form-group">
@@ -135,10 +145,16 @@
             <label for="f-spouse-birth">Spouse birth year</label>
             <input type="number" id="f-spouse-birth" name="spouse_birth_year" min="1000" max="2100" />
           </div>
-          <div class="form-group">
+          <div class="form-group" id="spouse-death-field" hidden>
             <label for="f-spouse-death">Spouse death year</label>
             <input type="number" id="f-spouse-death" name="spouse_death_year" min="1000" max="2100" />
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="check-label deceased-toggle">
+            <input type="checkbox" id="f-spouse-deceased" /> Spouse deceased
+          </label>
         </div>
 
         <div class="form-group">

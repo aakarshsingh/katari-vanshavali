@@ -48,6 +48,47 @@ async function init() {
   wireTitleEdit();
   wireExportDialog();
   wireHelp();
+  wireLock();
+  wireCanvasDismiss();
+}
+
+// Clicking empty canvas closes the sidebar. Node/affordance clicks call
+// stopPropagation, so they don't bubble here.
+function wireCanvasDismiss() {
+  const vp = document.getElementById('tree-viewport');
+  if (!vp) return;
+  vp.addEventListener('click', () => {
+    if (typeof closeSidebar === 'function') closeSidebar();
+  });
+}
+
+// Edit lock: ON by default → tree is read-only (safe for viewing). Unlock to edit.
+let locked = true;
+window.__locked = true;
+
+function applyLock() {
+  window.__locked = locked;
+  document.body.classList.toggle('locked', locked);
+
+  const titleEl = document.getElementById('tree-title');
+  if (titleEl) titleEl.setAttribute('contenteditable', locked ? 'false' : 'true');
+
+  const btn = document.getElementById('btn-lock');
+  if (btn) {
+    btn.setAttribute('aria-pressed', String(locked));
+    btn.title = locked ? 'Locked — click to enable editing' : 'Editing — click to lock';
+    btn.innerHTML =
+      `<i data-lucide="${locked ? 'lock' : 'lock-open'}"></i>` +
+      `<span id="lock-label">${locked ? 'Locked' : 'Editing'}</span>`;
+    if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+  }
+}
+
+function wireLock() {
+  const btn = document.getElementById('btn-lock');
+  if (!btn) return;
+  btn.addEventListener('click', () => { locked = !locked; applyLock(); });
+  applyLock(); // establish the default locked state
 }
 
 function wireHelp() {

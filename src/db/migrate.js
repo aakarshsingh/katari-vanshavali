@@ -37,6 +37,8 @@ async function runMigrations() {
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_birth_year INTEGER`);
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year INTEGER`);
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_gender TEXT`);
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS deceased BOOLEAN DEFAULT FALSE`);
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_deceased BOOLEAN DEFAULT FALSE`);
 
     // Normalise the tree title to "Katari Lineage" (EN) / "वंशावली" (HI).
     // Only touches placeholder/broken states (empty, old default, or Devanagari

@@ -7,7 +7,9 @@ A traditional Indian genealogical tree builder. Create, edit, and export your fa
 - **Bilingual** — every person stores an English name and a Hindi (Devanagari) name; the canvas *and* the title toggle language live
 - **Transliteration chips** — type an English name and get 3–5 AI-generated Devanagari options to click into the Hindi field
 - **Couple cards** — tick **Married** in the form to reveal spouse fields; the card then renders as a paired couple (two boxes joined by a marriage connector), each with its own birth/death year. Untick for a single card.
-- **Colour coding** — boxes are coloured by **role** (bloodline = cream, married-in spouse = blue-grey) with a small **♂/♀ gender accent** and dark, readable text. Child lines descend from the centre of the marriage connector.
+- **Generation colour palette** — bloodline boxes are coloured **by generation** in muted Indian natural-dye tones (Kumkum red → turmeric → mehendi → indigo → terracotta) with thick coloured borders so the bloodline pops; married-in spouses are a uniform muted taupe. Gender is shown by a small **♂/♀ accent**. Sepia ink on a parchment canvas.
+- **Clean line routing** — children hang from a shared horizontal bus just below each parent; child lines descend from the centre of the marriage connector. Larger families pack into two rows with the second row brick-offset so its lines pass between (not through) the first row.
+- **Edit lock** — a lock toggle (ON by default) keeps the tree read-only for safe viewing; unlock to enable editing. Navigation, export, language and minimap stay available while locked.
 - **SVG tree renderer** — compact top-down grouped layout with **2-row child packing** (fits more per screen); **dynamic node widths + 2-line wrapping** (no truncation); soft generation banding; heavier patriarch border; **Tiro Devanagari Hindi** serif; decorative double border
 - **On-card actions** — hover a card for an **edit (✎)** icon and an **add-child (+)** button; right-click for the full menu (add / edit / delete)
 - **Pan / zoom / navigate** — scroll to pan, **Ctrl+scroll** (or toolbar buttons) to zoom, Fit to reset, and a toggleable **minimap** for large trees
@@ -177,9 +179,9 @@ Visit the app URL in a browser — the family tree should render immediately.
 
 ```sql
 tree         (id, title_en, title_hi, created_at, updated_at)
-person       (id, tree_id, name_en, name_hi, birth_year, death_year,
+person       (id, tree_id, name_en, name_hi, birth_year, death_year, deceased,
               spouse_en, spouse_hi, spouse_birth_year, spouse_death_year,
-              spouse_gender, gender, notes, x_pos, y_pos)
+              spouse_deceased, spouse_gender, gender, notes, x_pos, y_pos)
 relationship (id, tree_id, parent_id, child_id)
 ```
 
@@ -201,4 +203,7 @@ All IDs are UUIDs. A single tree row owns all persons and relationships; cascadi
 | Zoom | **Ctrl + scroll**, or toolbar zoom buttons; Fit to reset |
 | Minimap | Toggle the map button in the toolbar |
 | See all controls | **?** help button in the toolbar |
+| Lock / unlock editing | Lock toggle in the toolbar (locked by default; unlock to edit) |
+| Close the form | Click any empty area of the canvas |
+| Record a death year | Tick **Deceased** in the form (hidden by default) |
 | Edit title | Click the title text in the toolbar |

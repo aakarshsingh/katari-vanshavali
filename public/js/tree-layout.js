@@ -226,20 +226,24 @@ function layoutCompact(nodeId, childrenOf, depth, getW) {
     rows.push(childLayouts.slice(i, i + cols));
   }
 
-  // Block width = widest row (and at least the node's own width)
-  let blockWidth = 0;
-  for (const row of rows) {
-    const rowW = row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1);
-    if (rowW > blockWidth) blockWidth = rowW;
-  }
-  blockWidth = Math.max(blockWidth, selfW);
+  const rowWidths = rows.map(row =>
+    row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1));
 
-  // Place each row centered within blockWidth
+  // Brick offset: row 1 is left-aligned; row 2 is shifted right by half a column
+  // so its children sit in row 1's gaps. Their drop-lines then pass between
+  // row-1 boxes instead of piercing them (e.g. a family of 3 puts its lone
+  // second-row child dead-centre in the gap).
+  const twoRow = rows.length === 2;
+  const halfPitch = twoRow ? (rows[0][0].width + H_GAP) / 2 : 0;
+
+  let blockWidth = Math.max(selfW, rowWidths[0] || 0);
+  if (twoRow) blockWidth = Math.max(blockWidth, halfPitch + (rowWidths[1] || 0));
+
   const childPositions = [];
   let currentY = H + V_GAP;
-  for (const row of rows) {
-    const rowW = row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1);
-    let x = Math.max(0, (blockWidth - rowW) / 2);
+  rows.forEach((row, ri) => {
+    const rowW = rowWidths[ri];
+    let x = twoRow ? (ri === 1 ? halfPitch : 0) : Math.max(0, (blockWidth - rowW) / 2);
     let rowH = 0;
     for (const cl of row) {
       for (const pos of cl.positions) {
@@ -249,7 +253,7 @@ function layoutCompact(nodeId, childrenOf, depth, getW) {
       if (cl.height > rowH) rowH = cl.height;
     }
     currentY += rowH + V_GAP;
-  }
+  });
 
   const nodeX = Math.max(0, (blockWidth - selfW) / 2);
   return {

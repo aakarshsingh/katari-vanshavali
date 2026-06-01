@@ -4,20 +4,28 @@ const STRIP_BOX_W = 140;
 const STRIP_BOX_H = 48;
 const STRIP_H_GAP = 20;
 const STRIP_V_PAD = 20;
-const INK = '#1a1008';
+// Traditional Vamshavali palette (muted Indian natural-dye tones).
+const INK = '#302B27';        // dark sepia ink — lines + text
 const FONT = "'Tiro Devanagari Hindi', Georgia, serif";
-// Role-based fill (T1): bloodline = cream, married-in spouse = warm taupe/terracotta
-// (vintage-consistent, replaces the blue-grey that clashed with the parchment).
-const FILL_BLOODLINE = '#fff8f0';
-const FILL_SPOUSE = '#ead7c2';
-const FILL_ANCESTOR = '#f5ede0';
+
+// Bloodline by generation (0 = root): fill + colored 2px border so it pops.
+const GEN_FILL = ['#F6E3E3', '#F7ECD5', '#E4E7D9', '#E0E5EA', '#EFE5DF'];
+const GEN_BORDER = ['#9E3A46', '#B57E22', '#5F6B4C', '#415B76', '#8B6A56'];
+// Spouses: constant, muted taupe that recedes.
+const SPOUSE_FILL = '#E8E2D9';
+const SPOUSE_BORDER = '#C4BCAF';
+const FILL_BLOODLINE = GEN_FILL[0]; // no-metrics fallback
+
+const FILL_ANCESTOR = '#EFE7DA';
 const TEXT_MUTED = '#6b5a44';
-// Gender accent glyph colours (dark text stays on the box; gender shown by accent).
-const ACCENT_M = '#3a5f7d';   // slate blue
-const ACCENT_F = '#9c4a6a';   // muted plum/rose
-// Soft generation banding (T8): low-alpha watermark, not a hard stripe.
-const BAND_FILL = '#b8986a';
-const BAND_OPACITY = 0.10;
+// Gender accent glyph colours.
+const ACCENT_M = '#415B76';   // faded indigo
+const ACCENT_F = '#9E3A46';   // kumkum red
+// Generation bands: alternating transparent / #F3EFE6.
+const BAND_FILL = '#F3EFE6';
+const BAND_OPACITY = 1;
+const _genIdx = (d) => Math.max(0, Math.min(GEN_FILL.length - 1, d));
+const BUS_DROP = 16;   // distance from parent bottom to the shared sibling bus
 // Max chars before truncating with ellipsis (ancestor strip only)
 const NAME_MAX = 22;
 
@@ -248,26 +256,34 @@ function renderEdges(svg, layoutMap, relationships, nodeH, yOffset, anchors) {
     const py = PADDING + yOffset + parent.y + nodeH;
     const cx = ca ? ca.attachX : PADDING + child.x + child.width / 2;
     const cy = PADDING + yOffset + child.y;
-    const midY = (py + cy) / 2;
+    // Shared horizontal "bus" just below the parent → clean comb; all children
+    // of a parent share it. Second-row children drop further from the same bus
+    // (their x is brick-offset into the gaps, so they don't cross row-1 boxes).
+    const busY = py + Math.min(BUS_DROP, (cy - py) * 0.5);
 
     edgeGroup.appendChild(svgEl('path', {
-      d: `M ${px} ${py} V ${midY} H ${cx} V ${cy}`,
+      d: `M ${px} ${py} V ${busY} H ${cx} V ${cy}`,
       fill: 'none', stroke: INK, 'stroke-width': 1.5, 'stroke-linejoin': 'round',
     }));
   }
   svg.appendChild(edgeGroup);
 }
 
-// Draws one labeled box. Fill by ROLE (bloodline cream / married-in spouse
-// blue-grey); gender shown by a small ♂/♀ accent; text is always dark for
-// readability. role: 'person' (bloodline) | 'spouse' (married-in).
-function drawBox(group, boxX, y, h, box, gender, role, emphasis) {
+// Draws one labeled box. Fill by ROLE + generation depth (lightens each
+// generation); gender shown by a small ♂/♀ accent; text always dark.
+// role: 'person' (bloodline) | 'spouse' (married-in).
+function drawBox(group, boxX, y, h, box, gender, role, emphasis, depth) {
   const M = NodeMetrics.M;
-  const fill = role === 'spouse' ? FILL_SPOUSE : FILL_BLOODLINE;
+  const isSpouse = role === 'spouse';
+  const gi = _genIdx(depth || 0);
+  const fill = isSpouse ? SPOUSE_FILL : GEN_FILL[gi];
+  const stroke = isSpouse ? SPOUSE_BORDER : GEN_BORDER[gi];
+  // Bloodline gets a thicker 2px border to pop against spouses; patriarch 2.5px.
+  const strokeWidth = isSpouse ? 1 : (emphasis ? 2.75 : 2);
 
   group.appendChild(svgEl('rect', {
     x: boxX, y, width: box.width, height: h,
-    fill, stroke: INK, 'stroke-width': emphasis ? 2.5 : 1, rx: 3,
+    fill, stroke, 'stroke-width': strokeWidth, rx: 3,
   }));
 
   // Gender accent glyph, top-left corner
@@ -353,12 +369,19 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
   const nodeGroup = svgEl('g', { class: 'nodes' });
   const metrics = (typeof NodeMetrics !== 'undefined') ? NodeMetrics : null;
 
+  // Generation index per node (by row y) → drives the lighten-per-generation fill.
+  const ys = [...new Set(layout.map(n => n.y))].sort((a, b) => a - b);
+  const genOf = {};
+  ys.forEach((yv, i) => { genOf[yv] = i; });
+  const maxGen = Math.max(1, ys.length - 1);
+
   for (const pos of layout) {
     const person = personMap[pos.id];
     if (!person) continue;
 
     const x = PADDING + pos.x;
     const y = PADDING + yOffset + pos.y;
+    const depth = genOf[pos.y] || 0;
     const isPatriarch = focalId && person.id === focalId;
 
     const g = svgEl('g', {
@@ -370,10 +393,10 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
 
     if (metrics) {
       const spec = metrics.cardSpec(person, lang);
-      drawBox(g, x + spec.person.offsetX, y, nodeH, spec.person.box, spec.person.gender, 'person', isPatriarch);
+      drawBox(g, x + spec.person.offsetX, y, nodeH, spec.person.box, spec.person.gender, 'person', isPatriarch, depth, maxGen);
 
       if (spec.isCouple) {
-        drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse');
+        drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse', false, depth, maxGen);
         // Marriage connector (double line) between the two boxes
         const x1 = x + spec.person.box.width;
         const x2 = x + spec.spouse.offsetX;
@@ -391,11 +414,13 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
     addAffordances(g, person, x, pos.width, y, nodeH);
 
     g.addEventListener('click', (e) => {
+      if (window.__locked) return;
       e.stopPropagation();
       if (typeof openEdit === 'function') openEdit(person.id);
     });
 
     g.addEventListener('contextmenu', (e) => {
+      if (window.__locked) return;
       e.preventDefault();
       e.stopPropagation();
       if (typeof showCtxMenu === 'function') showCtxMenu(e, person.id);

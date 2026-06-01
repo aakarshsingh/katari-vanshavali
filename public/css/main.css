@@ -164,6 +164,7 @@ main {
   overflow: auto;
   cursor: default;
   position: relative;
+  background: #FDFBF7;
 }
 
 #tree-svg {
@@ -465,3 +466,11 @@ main {
   box-shadow: 0 6px 22px rgba(26, 16, 8, 0.40);
 }
 #minimap-holder { border: 1px solid var(--border); }
+
+/* ── Edit lock (read-only by default) ──────────────────────────────────── */
+body.locked .node { cursor: default; }
+body.locked .affordance { display: none !important; }
+body.locked #btn-add-person { display: none; }
+body.locked #tree-title { border-bottom-color: transparent; cursor: default; }
+body.locked .title-hint { display: none; }
+#btn-lock[aria-pressed="false"] { background: var(--chip-bg); border-color: var(--ink-muted); }

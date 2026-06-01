@@ -15,6 +15,7 @@ router.post(
     const {
       name_en, name_hi, birth_year, death_year, spouse_en, spouse_hi,
       spouse_birth_year, spouse_death_year, spouse_gender, gender, notes,
+      deceased, spouse_deceased,
     } = req.body;
     try {
       const treeResult = await pool.query('SELECT id FROM tree LIMIT 1');
@@ -23,8 +24,9 @@ router.post(
       const result = await pool.query(
         `INSERT INTO person
           (tree_id, name_en, name_hi, birth_year, death_year, spouse_en, spouse_hi,
-           spouse_birth_year, spouse_death_year, spouse_gender, gender, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+           spouse_birth_year, spouse_death_year, spouse_gender, gender, notes,
+           deceased, spouse_deceased)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
         [
           tree_id,
           name_en.trim(),
@@ -38,6 +40,8 @@ router.post(
           spouse_gender || null,
           gender || 'M',
           notes || null,
+          deceased === true,
+          spouse_deceased === true,
         ]
       );
       res.status(201).json(result.rows[0]);
@@ -61,6 +65,7 @@ router.patch(
     const allowed = [
       'name_en', 'name_hi', 'birth_year', 'death_year', 'spouse_en', 'spouse_hi',
       'spouse_birth_year', 'spouse_death_year', 'spouse_gender', 'gender', 'notes',
+      'deceased', 'spouse_deceased',
     ];
     const updates = [];
     const values = [];

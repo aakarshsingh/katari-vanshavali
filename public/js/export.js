@@ -4,7 +4,7 @@
 // problem of @font-face fonts not loading when an SVG is drawn through <img>.
 // jsPDF and canvg are self-hosted under /vendor so export never depends on a CDN.
 
-const PARCHMENT = '#faf3e0';
+const PARCHMENT = '#FDFBF7';
 const INK_COLOR = '#1a1008';
 const EXPORT_FONT = "'Tiro Devanagari Hindi', Georgia, serif";
 const MAX_CANVAS_DIM = 8000; // stay well under browser canvas limits
