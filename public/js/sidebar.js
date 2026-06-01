@@ -135,6 +135,11 @@ function resetForm(els) {
   setMarried(els, false);
   setLiving(els, true);
   setSpouseLiving(els, true);
+  // Clear any leftover transliteration chips from a previous person.
+  ['chips-name', 'chips-spouse'].forEach((id) => {
+    const c = document.getElementById(id);
+    if (c) c.innerHTML = '';
+  });
   const btnAddChild = document.getElementById('btn-add-child');
   if (btnAddChild) btnAddChild.hidden = true;
 }
@@ -306,6 +311,13 @@ function initSidebar() {
 
   els.btnClose && els.btnClose.addEventListener('click', closeSidebar);
   els.form && els.form.addEventListener('submit', handleSubmit);
+  // Enter in any text/number input saves (textarea keeps normal newlines).
+  els.form && els.form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+      e.preventDefault();
+      if (els.form.requestSubmit) els.form.requestSubmit(); else handleSubmit(e);
+    }
+  });
   els.btnDelete && els.btnDelete.addEventListener('click', handleDelete);
   els.married && els.married.addEventListener('change', () => setMarried(els, els.married.checked));
   els.living && els.living.addEventListener('change', () => setLiving(els, els.living.checked));

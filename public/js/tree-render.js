@@ -441,10 +441,10 @@ function addAddChildIcon(g, personId, cx, cy) {
 // Small −/+ toggle at a parent's bottom edge to collapse / expand its branch.
 function addCollapseToggle(g, id, cx, cy, isCollapsed) {
   const t = svgEl('g', { class: 'collapse-toggle' });
-  t.appendChild(svgEl('circle', { cx, cy, r: 8, fill: '#fff8f0', stroke: INK, 'stroke-width': 1.25 }));
+  t.appendChild(svgEl('circle', { cx, cy, r: 9, fill: '#FDFBF7', stroke: INK, 'stroke-width': 1.5 }));
   const sign = svgEl('text', {
     x: cx, y: cy, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-    'font-size': 14, 'font-weight': 'bold', fill: INK,
+    'font-size': 15, 'font-weight': 'bold', fill: INK,
   });
   sign.textContent = isCollapsed ? '+' : '−';
   t.appendChild(sign);

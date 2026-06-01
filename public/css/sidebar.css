@@ -129,7 +129,10 @@
   flex-wrap: wrap;
   gap: 5px;
   min-height: 24px;
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
+.chip-row:empty { min-height: 0; margin: 0; }
 
 .chip {
   display: inline-flex;
@@ -192,10 +195,13 @@
 
 /* Group the spouse sub-section with a distinct tinted panel (visual ease) */
 #spouse-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;                 /* let the nested fields breathe */
   background: rgba(140, 110, 70, 0.07);
   border: 1px solid var(--border, #c8b89a);
   border-radius: 5px;
-  padding: 12px 12px 2px;
+  padding: 12px;
   margin-bottom: 14px;
 }
 #spouse-fields[hidden] { display: none; }

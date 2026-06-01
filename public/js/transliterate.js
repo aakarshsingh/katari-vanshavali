@@ -43,10 +43,10 @@ function attachTransliterate(inputEl, outputEl) {
     const text = inputEl.value.trim();
     clearTimeout(debounceTimer);
 
-    if (!text) {
-      _clearChips(container);
-      return;
-    }
+    // Always clear stale chips immediately so we never show a previous name's
+    // suggestions while the new ones are fetched.
+    _clearChips(container);
+    if (!text) return;
 
     debounceTimer = setTimeout(function() {
       if (_transCache.has(text)) {
