@@ -49,7 +49,10 @@ function renderTree(state) {
   const personMap = Object.fromEntries(persons.map(p => [p.id, p]));
 
   // Compute descendant layout first — needed to know focal person's x position
-  const layout = computeLayout(descendantPersons, descendantRelationships);
+  // Grouped layout: each top-level branch is a compact group, children wrap in rows
+  const layout = (typeof computeGroupedLayout === 'function' && split.focalId)
+    ? computeGroupedLayout(descendantPersons, descendantRelationships, split.focalId)
+    : computeLayout(descendantPersons, descendantRelationships);
   if (!layout || layout.length === 0) return;
 
   const { width: nodeW, height: nodeH } = layout[0];

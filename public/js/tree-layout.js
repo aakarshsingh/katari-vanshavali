@@ -175,4 +175,134 @@ function splitTree(persons, relationships, focalNameEn) {
   };
 }
 
-if (typeof module !== 'undefined') module.exports = { computeLayout, splitTree };
+// ── Grouped / compact layout ────────────────────────────────────────────────
+// Used instead of Reingold-Tilford when a focal person is identified.
+// Each top-level branch (direct child of focal) becomes a self-contained group.
+// Within each group, children are wrapped into rows of MAX_COLS and centered.
+
+const MAX_COLS   = 3;   // max siblings per row within a group
+const GROUP_GAP  = 72;  // horizontal gap between top-level groups
+
+// Recursively lays out a subtree rooted at nodeId.
+// Returns { positions:[{id,x,y}], width, height } — all coords relative to (0,0).
+function layoutCompact(nodeId, childrenOf, depth) {
+  const children = childrenOf[nodeId] || [];
+
+  if (children.length === 0) {
+    return {
+      positions: [{ id: nodeId, x: 0, y: 0 }],
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    };
+  }
+
+  const childLayouts = children.map(c => layoutCompact(c, childrenOf, depth + 1));
+
+  // Chunk into rows of MAX_COLS
+  const rows = [];
+  for (let i = 0; i < children.length; i += MAX_COLS) {
+    rows.push(childLayouts.slice(i, i + MAX_COLS));
+  }
+
+  let currentY = NODE_HEIGHT + V_GAP;
+  let blockWidth = 0;
+  const childPositions = [];
+
+  for (const row of rows) {
+    const rowW = row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1);
+    blockWidth = Math.max(blockWidth, rowW);
+
+    // Center each row
+    const rowOffsetX = (blockWidth - rowW) / 2;
+    let x = rowOffsetX;
+    let rowH = 0;
+
+    for (const cl of row) {
+      for (const pos of cl.positions) {
+        childPositions.push({ id: pos.id, x: x + pos.x, y: currentY + pos.y });
+      }
+      x += cl.width + H_GAP;
+      rowH = Math.max(rowH, cl.height);
+    }
+    currentY += rowH + V_GAP;
+  }
+
+  // After blockWidth is known, re-center rows that were set with blockWidth=0 initially.
+  // Second pass: re-center (blockWidth is now final).
+  // Re-do row centering with correct blockWidth.
+  childPositions.length = 0;
+  currentY = NODE_HEIGHT + V_GAP;
+
+  for (const row of rows) {
+    const rowW = row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1);
+    const rowOffsetX = Math.max(0, (blockWidth - rowW) / 2);
+    let x = rowOffsetX;
+    let rowH = 0;
+
+    for (const cl of row) {
+      for (const pos of cl.positions) {
+        childPositions.push({ id: pos.id, x: x + pos.x, y: currentY + pos.y });
+      }
+      x += cl.width + H_GAP;
+      rowH = Math.max(rowH, cl.height);
+    }
+    currentY += rowH + V_GAP;
+  }
+
+  // Center parent over the full block width
+  const nodeX = Math.max(0, (blockWidth - NODE_WIDTH) / 2);
+
+  return {
+    positions: [{ id: nodeId, x: nodeX, y: 0 }, ...childPositions],
+    width: Math.max(blockWidth, NODE_WIDTH),
+    height: currentY - V_GAP,
+  };
+}
+
+// Top-level grouped layout: each direct child of focal is a group.
+// Groups are placed side-by-side; focal person is centered above them all.
+function computeGroupedLayout(persons, relationships, focalId) {
+  if (!persons || persons.length === 0) return [];
+
+  const childrenOf = buildAdjacency(persons, relationships);
+  const groups = childrenOf[focalId] || [];
+
+  if (groups.length === 0) {
+    return [{ id: focalId, x: 0, y: 0, width: NODE_WIDTH, height: NODE_HEIGHT }];
+  }
+
+  // Layout each group subtree
+  const groupLayouts = groups.map(gId => layoutCompact(gId, childrenOf, 0));
+
+  // Arrange groups side by side, offset downward by one level
+  let offsetX = 0;
+  const allPositions = [];
+
+  for (const gl of groupLayouts) {
+    for (const pos of gl.positions) {
+      allPositions.push({
+        id: pos.id,
+        x: pos.x + offsetX,
+        y: pos.y + NODE_HEIGHT + V_GAP,
+      });
+    }
+    offsetX += gl.width + GROUP_GAP;
+  }
+
+  // Focal person centered above all groups
+  const totalW = offsetX - GROUP_GAP;
+  const focalX = Math.max(0, (totalW - NODE_WIDTH) / 2);
+  allPositions.push({ id: focalId, x: focalX, y: 0 });
+
+  // Normalise so min-x = 0
+  const minX = Math.min(...allPositions.map(n => n.x));
+  return allPositions.map(n => ({
+    id: n.id,
+    x: n.x - minX,
+    y: n.y,
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
+  }));
+}
+
+if (typeof module !== 'undefined') module.exports = { computeLayout, splitTree, computeGroupedLayout };
