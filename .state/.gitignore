@@ -2,3 +2,7 @@
 !.state/conventions.md
 !.state/maintain/
 !.state/maintain/**
+
+# Local-only working artifacts (screenshots, source docs/PDF — may hold family data)
+docs/
+ss/

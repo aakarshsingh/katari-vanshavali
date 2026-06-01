@@ -3,64 +3,81 @@
 ## Current State
 
 - **Live URL:** https://katari-vanshavali-production.up.railway.app/
-- **Branch:** `main` — R2 (`3dc88a0`) pushed/deployed; **Round 3 committed locally, pending push**.
-- **All phases 0–18 + Pivot R0–R13 + Round 3 T1–T12 complete.** `npm test` → 22/22.
+- **Branch:** `main` — latest local commit **`4bc277d`**. Several rounds committed
+  locally and **NOT yet pushed** (user pushes + Railway auto-deploys).
+- **All phases 0–18 + Pivot R2/R3 + many UI polish rounds complete.**
+- `npm test` → **26/26 pass** (3 suites: api, tree-layout, render-smoke).
 
-## Round 3 — What Was Built (feedback on deployed R2)
+## How this app is built (orientation)
 
-Full plan in `.state/execution_plan.md` → "Pivot Round 3". Locked decisions: role-fill colours,
-Tiro Devanagari Hindi font, 2-row child packing.
+Express + PostgreSQL + vanilla-JS SVG frontend. Frontend scripts share global
+scope (no bundler); load order in `index.html` matters:
+`node-metrics → tree-layout → tree-render → canvas → minimap → transliterate →
+sidebar → context-menu → vendor(jspdf,canvg) → export → main`.
 
-1. **T1 Colours** — boxes coloured by **role** (bloodline = cream `#fff8f0`, married-in spouse =
-   blue-grey `#e6ecf0`) + a ♂/♀ **gender accent** glyph; dark text throughout. Solid red dropped.
-   (`tree-render.js` drawBox; CSS node colour rules already removed in R2.)
-2. **T2 Font** — self-hosted **Tiro Devanagari Hindi** (`public/fonts/TiroDevanagariHindi-*.woff2`),
-   names in regular weight (fixes "lost in bold"). `@font-face` in main.css; `FONT` const in
-   tree-render; `node-metrics.M.FONT_NAME/FONT_META`; title CSS; export font.
-3. **T3 Married checkbox** — `#f-married` toggles `#spouse-fields`; unchecked → spouse data nulled
-   on save (single card). Couple still derived from spouse name. (`index.html`, `sidebar.js`)
-4. **T4 Edit parent + re-parent** — edit shows the actual current parent (no more "none"); changing
-   it swaps the relationship (delete old + create new). Excludes self + descendants. (`sidebar.js`)
-5. **T5 Edge origin** — child lines descend from the **marriage-connector centre** (couples), attach
-   to each child's bloodline-box centre. (`tree-render.js` anchors map + renderEdges)
-6. **T6 2-row packing** — `colsFor(n)` = ceil(n/2) for families >3 children. (`tree-layout.js`)
-7. **T7 Export fix** — canvg `resize(..., 'xMidYMid meet')` + `ignoreDimensions/ignoreClear` (no more
-   clipping); **title baked into the image** via canvas fillText with Tiro (Devanagari-safe, fixes
-   the `5 6 > 5 2 @` garbage); PDF uses JPEG + ASCII-only footer. (`export.js`)
-8. **T8 Banding** — soft low-alpha watermark (`fill-opacity 0.10`, rounded). (`tree-render.js`)
-9. **T9 Minimap** — stronger border + drop shadow. (`main.css`)
-10. **T10 Title** — empty-state placeholder; edits write the active-language field (EN→title_en).
-11. **T11** — README refreshed; layout tests for 2-row packing (22/22).
-12. **T12 Density** — smaller cards/min-width, tighter gaps (V_GAP 30, GROUP_GAP 30, H_GAP 14),
-    trimmed marriage gap → fits more / less scrolling.
+Key files:
+- `public/js/node-metrics.js` — text measure/wrap + per-card sizing (strict 130px
+  width, names wrap; couples = two boxes + COUPLE_GAP).
+- `public/js/tree-layout.js` — **Reingold–Tilford** tidy layout: true per-depth
+  contours + variable widths (`computeLayout`). One row per generation
+  (`colsFor` returns n). `splitTree` peels the ancestor chain above the focal
+  ("Bade Lal Singh"). `computeGroupedLayout` is retired from the render path
+  (still present/tested).
+- `public/js/tree-render.js` — SVG render: couple cards + group container,
+  generation **palette by true depth** (`computeDepths` BFS), bands per
+  generation, edges via shared bus from the marriage-connector centre, ancestor
+  strip + orthogonal dotted connector, per-box edit ✎, add-child +, collapse
+  −/+ toggle, chain-highlight on hover (locked), integrated title header.
+- `public/js/main.js` — state store, lang toggle, **edit lock** (default ON),
+  **search** (bilingual + focus/pulse), title edit (click canvas heading when
+  unlocked), help popover, canvas-dismiss, zoom hooks.
+- `public/js/canvas.js` — pan/zoom; zoom sizes the SVG element (scroll-accurate);
+  default zoom 1.4×; grab/grabbing cursor via `.panning`.
+- `public/js/minimap.js` — on by default; clones #tree-svg thumbnail (text
+  hidden via CSS), draggable viewport rect.
+- `public/js/export.js` — **canvg** raster (full tree, title baked via SVG) +
+  self-hosted jsPDF (`public/vendor/`); strips `.affordance`/`.collapse-toggle`;
+  minimap is never included (separate element).
 
-## Known data note
+## Data model (person)
 
-`title_en` in the live DB currently holds Devanagari ("वंशावली") — that's why EN header looked
-"broken". Fix is data: open the title in **EN mode** and type an English title; HI mode sets the
-Hindi one. Export now bakes whichever title matches the export language and renders it correctly.
+`name_en/hi, birth_year, death_year, deceased, spouse_en/hi,
+spouse_birth_year, spouse_death_year, spouse_deceased, spouse_gender, gender,
+notes, x_pos, y_pos`. Couple is derived (spouse name present). Death year hidden
+behind the **"Living"** checkbox (checked by default).
 
-## What Still Needs Live Testing (after push/deploy)
+## Deploy notes (when pushed)
 
-- [ ] Colours: cream bloodline / blue-grey spouse + ♂/♀ accent, all readable
-- [ ] Tiro font renders Hindi cleanly (not thin/lost)
-- [ ] Married checkbox shows/hides spouse fields; unticking removes the spouse box
-- [ ] Edit shows real parent; re-parenting moves the subtree; no self/descendant options
-- [ ] Child lines start from the = connector centre
-- [ ] Families >3 children pack into 2 rows; overall tree noticeably more compact
-- [ ] **Export PNG + PDF: full tree (no clipping) + correct title (no garbage)** — the key fix
-- [ ] Banding subtle; minimap clearly framed
-- [ ] Set an English title in EN mode → header + EN export show it
+- `railway.toml` runs `npm run migrate && npm start`. The migration is additive +
+  idempotent: adds spouse_*/deceased columns and normalises the title to
+  "Katari Lineage" / "वंशावली". No manual DB step.
+- Transliteration + Vision need **`ANTHROPIC_API_KEY`** set in Railway. The
+  transliterate route now logs clearly and parses fenced JSON (the old 502 cause).
 
-## Read First On Resume
+## Latest UI test checklist (after push/deploy)
 
-1. `.state/execution_plan.md` — Pivot Round 3 section
-2. `.state/conventions.md`
+- [ ] Generation colours follow true depth (a node pushed to a lower row keeps its
+      generation colour); RT layout is tight, no overlaps, parents centred
+- [ ] One row per generation; narrow boxes wrap; names crisp (15px Noto)
+- [ ] Couples: group container, ♂/♀ accent, edit ✎ on BOTH boxes
+- [ ] Lock ON by default; locked = view-only + hover chain-highlight; unlock = edit
+- [ ] Search finds EN/HI names → centres + pulses; collapse −/+ reflows tree
+- [ ] Minimap visible by default, draggable; NOT in exports
+- [ ] Export PNG/PDF: full tree, correct integrated title, Devanagari renders
+- [ ] Death year hidden unless "Living" unchecked; spouse panel spacing comfortable
+- [ ] Transliteration chips match the current name (no stale chips); Enter saves
+- [ ] Grab/grabbing pan cursor on canvas
+
+## Memory
+
+Durable prefs saved under `~/.claude/projects/D--CODE-katari-vanshavali/memory/`:
+project, plan-first, API-shape, and **feedback_design_palette** (generation
+palette + death-year sensitivity).
 
 ## Resume Prompt
 
-> Vanshavali — Round 3 implemented locally (role colours + gender accent, Tiro font, married
-> checkbox, edit-parent/re-parent, connector-origin edges, 2-row packing, fixed export
-> clipping + baked title, density pass). 22/22 tests pass. Committed, pending push/deploy.
-> Read `.state/resume.md`, then verify the live UI checklist (esp. export) and have the user
-> set an English title in EN mode.
+> Vanshavali family tree — all features in (RT layout, generation palette, lock,
+> search, collapsible branches, chain highlight, minimap, robust canvg export,
+> Living/Married toggles). 26/26 tests pass. Latest commit 4bc277d, committed
+> locally but pending push/deploy. Read `.state/resume.md`, then verify the live
+> UI checklist and ensure ANTHROPIC_API_KEY is set on Railway.
