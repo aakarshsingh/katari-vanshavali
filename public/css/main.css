@@ -524,3 +524,11 @@ body.locked .title-hint { display: none; }
 /* Collapse / expand toggle (always visible on parents) */
 .collapse-toggle { cursor: pointer; }
 .collapse-toggle:hover circle { fill: #e8dcc0; }
+
+/* Help popover: subtle divider before the "when unlocked" group */
+#help-popover .help-sep {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--ink-muted);
+}
