@@ -181,3 +181,10 @@
   gap: 8px;
   padding-top: 4px;
 }
+
+/* Transliteration fallback message */
+.chip-msg {
+  font-size: 0.72rem;
+  color: var(--ink-faint, #9a8a70);
+  font-style: italic;
+}

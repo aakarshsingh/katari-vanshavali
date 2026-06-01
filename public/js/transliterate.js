@@ -1,7 +1,13 @@
 const _transCache = new Map();
 
-function _getChipContainer(outputEl) {
-  return outputEl ? outputEl.nextElementSibling : null;
+// The chip row sits immediately after the English (input) field, e.g.
+// #f-name-en -> #chips-name, #f-spouse-en -> #chips-spouse.
+function _getChipContainer(inputEl) {
+  return inputEl ? inputEl.nextElementSibling : null;
+}
+
+function _showMessage(container, msg) {
+  if (container) container.innerHTML = '<span class="chip-msg">' + msg + '</span>';
 }
 
 function _clearChips(container) {
@@ -30,7 +36,7 @@ function _renderChips(container, options, outputEl) {
 
 function attachTransliterate(inputEl, outputEl) {
   if (!inputEl || !outputEl) return;
-  const container = _getChipContainer(outputEl);
+  const container = _getChipContainer(inputEl);
   let debounceTimer = null;
 
   inputEl.addEventListener('keyup', function() {
@@ -51,10 +57,14 @@ function attachTransliterate(inputEl, outputEl) {
       _showSpinner(container);
       api.transliterate(text).then(function(data) {
         const options = (data && data.options) ? data.options : [];
-        _transCache.set(text, options);
-        _renderChips(container, options, outputEl);
+        if (options.length === 0) {
+          _showMessage(container, 'No suggestions — type Hindi directly');
+        } else {
+          _transCache.set(text, options);
+          _renderChips(container, options, outputEl);
+        }
       }).catch(function() {
-        _clearChips(container);
+        _showMessage(container, 'Suggestions unavailable — type Hindi directly');
       });
     }, 600);
   });

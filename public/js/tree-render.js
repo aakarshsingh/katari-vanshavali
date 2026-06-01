@@ -6,9 +6,10 @@ const STRIP_H_GAP = 20;
 const STRIP_V_PAD = 20;
 const INK = '#1a1008';
 const FONT = "'Tiro Devanagari Hindi', Georgia, serif";
-// Role-based fill (T1): bloodline = cream, married-in spouse = soft blue-grey.
+// Role-based fill (T1): bloodline = cream, married-in spouse = warm taupe/terracotta
+// (vintage-consistent, replaces the blue-grey that clashed with the parchment).
 const FILL_BLOODLINE = '#fff8f0';
-const FILL_SPOUSE = '#e6ecf0';
+const FILL_SPOUSE = '#ead7c2';
 const FILL_ANCESTOR = '#f5ede0';
 const TEXT_MUTED = '#6b5a44';
 // Gender accent glyph colours (dark text stays on the box; gender shown by accent).
@@ -35,7 +36,10 @@ function renderTree(state) {
   const svg = document.getElementById('tree-svg');
   if (!svg) return;
 
-  const { persons, relationships, lang } = state;
+  const { persons, relationships, lang, tree } = state;
+  const headerTitle = tree
+    ? (lang === 'hi' ? (tree.title_hi || tree.title_en) : (tree.title_en || tree.title_hi))
+    : '';
 
   const hint = document.getElementById('empty-hint');
   while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -89,6 +93,7 @@ function renderTree(state) {
   svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
 
   renderBorder(svg, svgW, svgH);
+  renderTitleHeader(svg, svgW, headerTitle);
   renderBands(svg, layout, nodeH, stripHeight, svgW);
 
   if (hasStrip) {
@@ -139,6 +144,29 @@ function renderBands(svg, layout, nodeH, yOffset, svgW) {
     }
   });
   svg.appendChild(g);
+}
+
+// Title as an integrated header inside the decorative border (top-centre),
+// with a small divider flourish — replaces the "floating" toolbar-only title
+// and is captured automatically on export.
+function renderTitleHeader(svg, svgW, title) {
+  if (!title) return;
+  const cx = svgW / 2;
+  const t = svgEl('text', {
+    class: 'tree-heading',
+    x: cx, y: 42,
+    'text-anchor': 'middle', 'dominant-baseline': 'middle',
+    'font-size': 26, fill: INK,
+  });
+  t.textContent = title;
+  t.setAttribute('font-family', FONT);
+  svg.appendChild(t);
+
+  const half = Math.min(160, Math.max(70, title.length * 7));
+  svg.appendChild(svgEl('line', {
+    x1: cx - half, y1: 62, x2: cx + half, y2: 62,
+    stroke: INK, 'stroke-width': 0.75,
+  }));
 }
 
 function renderBorder(svg, w, h) {

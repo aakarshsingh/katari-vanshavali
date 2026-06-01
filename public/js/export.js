@@ -66,16 +66,8 @@ async function _rasterize(clone, title) {
   v.resize(canvas.width, canvas.height, 'xMidYMid meet');
   await v.render();
 
-  // Bake the title into the image (page font renders Devanagari correctly,
-  // unlike jsPDF Helvetica). Device-pixel coords; scaled by dpr.
-  if (title) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = INK_COLOR;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `${Math.round(22 * dpr)}px ${EXPORT_FONT}`;
-    ctx.fillText(title, canvas.width / 2, Math.round(34 * dpr));
-  }
+  // The title is part of the SVG header (rendered by canvg above), so no extra
+  // baking is needed here — it renders correctly in any script.
 
   return { canvas, w, h };
 }

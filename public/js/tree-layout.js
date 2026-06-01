@@ -196,7 +196,8 @@ function splitTree(persons, relationships, focalNameEn) {
 
 // T6: pack a family's children into a 2-row grid (cols = ceil(n/2)) once a
 // family has more than ROW2_THRESHOLD children — fits more horizontally.
-const ROW2_THRESHOLD = 3;
+// Threshold 2 → families of 3+ stagger into two rows (compresses gen 3+).
+const ROW2_THRESHOLD = 2;
 const GROUP_GAP  = 30;  // horizontal gap between top-level groups (T12: tightened)
 
 // Number of columns to use for a set of n children.

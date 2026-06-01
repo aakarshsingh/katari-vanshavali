@@ -38,6 +38,19 @@ async function runMigrations() {
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year INTEGER`);
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_gender TEXT`);
 
+    // Normalise the tree title to "Katari Lineage" (EN) / "वंशावली" (HI).
+    // Only touches placeholder/broken states (empty, old default, or Devanagari
+    // mistakenly stored in title_en) — won't clobber a real English title.
+    await client.query(
+      `UPDATE tree SET title_en = 'Katari Lineage'
+        WHERE title_en IS NULL OR btrim(title_en) = ''
+           OR title_en = 'Family Tree' OR title_en = 'वंशावली'`
+    );
+    await client.query(
+      `UPDATE tree SET title_hi = 'वंशावली'
+        WHERE title_hi IS NULL OR btrim(title_hi) = ''`
+    );
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS relationship (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

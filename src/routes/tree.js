@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
     let tree = treeResult.rows[0];
     if (!tree) {
       const created = await pool.query(
-        "INSERT INTO tree (title_en) VALUES ('Family Tree') RETURNING *"
+        "INSERT INTO tree (title_en, title_hi) VALUES ('Katari Lineage', 'वंशावली') RETURNING *"
       );
       tree = created.rows[0];
     }

@@ -110,15 +110,15 @@ describe('2-row child packing (T6)', () => {
     return { persons, rels };
   }
 
-  test('a family with >3 children packs into exactly two rows', () => {
-    const { persons, rels } = family(6);
+  test('a family with 3+ children packs into exactly two rows', () => {
+    const { persons, rels } = family(3);
     const layout = computeGroupedLayout(persons, rels, 'F');
     const kidYs = new Set(layout.filter(n => n.id.startsWith('k')).map(n => n.y));
     expect(kidYs.size).toBe(2);
   });
 
-  test('a small family (<=3) stays on one row', () => {
-    const { persons, rels } = family(3);
+  test('a small family (<=2) stays on one row', () => {
+    const { persons, rels } = family(2);
     const layout = computeGroupedLayout(persons, rels, 'F');
     const kidYs = new Set(layout.filter(n => n.id.startsWith('k')).map(n => n.y));
     expect(kidYs.size).toBe(1);
