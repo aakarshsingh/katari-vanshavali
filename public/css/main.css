@@ -1,0 +1,382 @@
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NotoSansDevanagari-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NotoSansDevanagari-Bold.woff2') format('woff2');
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --cream:      #fdf6e3;
+  --ink:        #1a1008;
+  --ink-muted:  #5a4a30;
+  --ink-faint:  #9a8a70;
+  --red-female: #8b1a1a;
+  --node-fill:  #fff8f0;
+  --border:     #c8b89a;
+  --accent:     #5c3d1e;
+  --chip-bg:    #f0e8d8;
+  --sidebar-w:  320px;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: Georgia, 'Times New Roman', serif;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr;
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 2px solid var(--ink);
+  background: var(--cream);
+  z-index: 100;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+
+#tree-title {
+  font-family: 'Noto Sans Devanagari', Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 1px dashed var(--ink-faint);
+  min-width: 80px;
+  outline: none;
+  padding: 2px 4px;
+}
+
+#tree-title:focus {
+  border-bottom-color: var(--accent);
+  background: rgba(92, 61, 30, 0.05);
+}
+
+.title-hint {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--ink);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.toolbar-btn:hover {
+  background: var(--chip-bg);
+  border-color: var(--ink-muted);
+}
+
+.toolbar-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.toolbar-btn--primary {
+  background: var(--ink);
+  color: var(--cream);
+  border-color: var(--ink);
+}
+
+.toolbar-btn--primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Main layout ── */
+main {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ── Tree viewport ── */
+#tree-viewport {
+  flex: 1;
+  overflow: auto;
+  cursor: default;
+  position: relative;
+}
+
+#tree-svg {
+  display: block;
+  transform-origin: 0 0;
+}
+
+.empty-hint {
+  font-family: Georgia, serif;
+  font-size: 1rem;
+  fill: var(--ink-faint);
+  font-style: italic;
+}
+
+/* ── SVG node styles ── */
+.node rect {
+  fill: var(--node-fill);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  rx: 3;
+}
+
+.node.female rect {
+  fill: var(--red-female);
+}
+
+.node .name-primary {
+  font-family: 'Noto Sans Devanagari', Georgia, serif;
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--ink);
+}
+
+.node.female .name-primary {
+  fill: var(--cream);
+}
+
+.node .name-secondary {
+  font-family: 'Noto Sans Devanagari', Georgia, serif;
+  font-size: 10px;
+  fill: var(--ink-muted);
+}
+
+.node.female .name-secondary {
+  fill: rgba(253, 246, 227, 0.75);
+}
+
+.node .years {
+  font-family: Georgia, serif;
+  font-size: 9px;
+  fill: var(--ink-faint);
+}
+
+.node.female .years {
+  fill: rgba(253, 246, 227, 0.6);
+}
+
+.node:hover rect {
+  stroke-width: 2.5;
+}
+
+.edge {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+/* ── Export dialog ── */
+#export-dialog {
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--cream);
+  padding: 24px;
+  min-width: 260px;
+}
+
+#export-dialog::backdrop {
+  background: rgba(26, 16, 8, 0.5);
+}
+
+#export-dialog h3 {
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+#export-dialog fieldset {
+  border: none;
+  margin-bottom: 14px;
+}
+
+#export-dialog legend {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+/* ── Context menu ── */
+#ctx-menu {
+  position: fixed;
+  background: var(--cream);
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 8px rgba(26, 16, 8, 0.2);
+  z-index: 300;
+  padding: 4px 0;
+  min-width: 140px;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-align: left;
+}
+
+.ctx-item:hover {
+  background: var(--chip-bg);
+}
+
+.ctx-item svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ctx-item--danger {
+  color: var(--red-female);
+}
+
+/* ── Shared buttons ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  background: var(--ink);
+  color: var(--cream);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.btn-secondary:hover {
+  background: var(--chip-bg);
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  background: transparent;
+  color: var(--red-female);
+  border: 1px solid var(--red-female);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.btn-danger:hover {
+  background: rgba(139, 26, 26, 0.08);
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-muted);
+  border-radius: 3px;
+}
+
+.icon-btn:hover {
+  background: var(--chip-bg);
+  color: var(--ink);
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+}

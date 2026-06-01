@@ -3,6 +3,8 @@ const path = require('path');
 const { runMigrations } = require('./src/db/migrate');
 const treeRouter = require('./src/routes/tree');
 const personsRouter = require('./src/routes/persons');
+const relationshipsRouter = require('./src/routes/relationships');
+const transliterateRouter = require('./src/routes/transliterate');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +18,8 @@ app.get('/health', (req, res) => {
 
 app.use('/api/tree', treeRouter);
 app.use('/api/persons', personsRouter);
+app.use('/api/relationships', relationshipsRouter);
+app.use('/api/transliterate', transliterateRouter);
 
 async function start() {
   try {
