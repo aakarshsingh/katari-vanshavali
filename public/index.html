@@ -25,10 +25,7 @@
       </button>
     </div>
 
-    <div class="toolbar-center">
-      <span id="tree-title" contenteditable="true" spellcheck="false" title="Click to edit title">वंशावली</span>
-      <i data-lucide="pencil" class="title-hint"></i>
-    </div>
+    <div class="toolbar-center"></div>
 
     <div class="toolbar-right">
       <button id="btn-zoom-in"  class="toolbar-btn" title="Zoom in">
@@ -129,36 +126,37 @@
         </div>
 
         <div id="spouse-fields" hidden>
+        <div class="spouse-heading">Spouse</div>
         <div class="form-group">
-          <label for="f-spouse-en">Spouse (English)</label>
+          <label for="f-spouse-en">Name (English)</label>
           <input type="text" id="f-spouse-en" name="spouse_en" autocomplete="off" />
           <div id="chips-spouse" class="chip-row" aria-live="polite"></div>
         </div>
 
         <div class="form-group">
-          <label for="f-spouse-hi">Spouse (Hindi) <span class="field-hint">auto-fills · editable</span></label>
+          <label for="f-spouse-hi">Name (Hindi) <span class="field-hint">auto-fills · editable</span></label>
           <input type="text" id="f-spouse-hi" name="spouse_hi" autocomplete="off" class="devanagari" />
         </div>
 
         <div class="form-group form-group--row" id="spouse-meta">
           <div class="form-group">
-            <label for="f-spouse-birth">Spouse birth year</label>
+            <label for="f-spouse-birth">Birth year</label>
             <input type="number" id="f-spouse-birth" name="spouse_birth_year" min="1000" max="2100" />
           </div>
           <div class="form-group" id="spouse-death-field" hidden>
-            <label for="f-spouse-death">Spouse death year</label>
+            <label for="f-spouse-death">Death year</label>
             <input type="number" id="f-spouse-death" name="spouse_death_year" min="1000" max="2100" />
           </div>
         </div>
 
         <div class="form-group">
           <label class="check-label deceased-toggle">
-            <input type="checkbox" id="f-spouse-deceased" /> Spouse deceased
+            <input type="checkbox" id="f-spouse-deceased" /> Deceased
           </label>
         </div>
 
         <div class="form-group">
-          <label>Spouse gender <span class="field-hint">defaults to opposite</span></label>
+          <label>Gender <span class="field-hint">defaults to opposite</span></label>
           <div class="radio-row">
             <label class="radio-label">
               <input type="radio" name="spouse_gender" value="M" /> Male

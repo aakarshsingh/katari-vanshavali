@@ -11,14 +11,15 @@ function clampScale(value) {
 }
 
 function applyScale(viewport, svg) {
-  // Scale the SVG element itself; preserve natural SVG width/height for scrollbar accuracy
+  // Size the SVG element itself (its viewBox scales to fit) rather than using a
+  // CSS transform — a transform does NOT grow the scroll area, which clipped the
+  // content when zoomed in. Sizing the element keeps the scroll area correct.
   const naturalW = parseFloat(svg.getAttribute('width')) || 2000;
   const naturalH = parseFloat(svg.getAttribute('height')) || 1500;
-  svg.style.transform = `scale(${scale})`;
+  svg.style.transform = '';
   svg.style.transformOrigin = '0 0';
-  // Expand the container so scrollbars track the scaled size
-  svg.style.width = naturalW + 'px';
-  svg.style.height = naturalH + 'px';
+  svg.style.width = (naturalW * scale) + 'px';
+  svg.style.height = (naturalH * scale) + 'px';
   viewport.style.overflow = 'auto';
   window.__canvasScale = scale;
 }
@@ -45,10 +46,28 @@ function isNodeTarget(el) {
   return el.closest && el.closest('.node') !== null;
 }
 
+// Set an absolute zoom level (used for the higher default zoom on load).
+function setScale(value) {
+  scale = clampScale(value);
+  const viewport = document.getElementById('tree-viewport');
+  const svg = document.getElementById('tree-svg');
+  if (viewport && svg) applyScale(viewport, svg);
+}
+// Re-apply current zoom after a re-render (the SVG's natural size may have changed).
+function reapplyScale() {
+  const viewport = document.getElementById('tree-viewport');
+  const svg = document.getElementById('tree-svg');
+  if (viewport && svg) applyScale(viewport, svg);
+}
+window.__setScale = setScale;
+window.__reapplyScale = reapplyScale;
+
 function initCanvas() {
   const viewport = document.getElementById('tree-viewport');
   const svg = document.getElementById('tree-svg');
   if (!viewport || !svg) return;
+
+  applyScale(viewport, svg); // establish correct scroll area from the start
 
   // Zoom buttons
   const btnIn = document.getElementById('btn-zoom-in');

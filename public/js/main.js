@@ -10,9 +10,27 @@ function setState(partial) {
   window.__state = state;
   if (typeof renderTree === 'function') renderTree(state);
   renderTitle();
+  if (typeof window.__reapplyScale === 'function') window.__reapplyScale();
   if (typeof updateMinimap === 'function') updateMinimap();
   return state;
 }
+
+// Edit the integrated canvas title (only when unlocked). Writes the
+// active-language field.
+function editTitle() {
+  if (window.__locked || !state.tree) return;
+  const hi = state.lang === 'hi';
+  const field = hi ? 'title_hi' : 'title_en';
+  const cur = state.tree[field] || '';
+  const v = window.prompt('Tree title (' + (hi ? 'Hindi' : 'English') + '):', cur);
+  if (v === null) return;
+  const nv = v.trim();
+  if (field === 'title_en' && !nv) return; // title_en must be non-empty
+  api.patchTree({ [field]: nv })
+    .then((r) => setState({ tree: r.tree }))
+    .catch((e) => console.error('Title update failed:', e.message));
+}
+window.editTitle = editTitle;
 
 // Header title follows the current language (falls back to the other language).
 function renderTitle() {
@@ -109,15 +127,19 @@ function wireHelp() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pop.hidden = true; });
 }
 
+const DEFAULT_ZOOM = 1.4; // higher default zoom on load (comfortable reading)
+
 function focusPerson(nameEn) {
   setTimeout(() => {
     const viewport = document.getElementById('tree-viewport');
-    const node = document.querySelector(`.node[data-name-en="${nameEn}"]`);
     if (!viewport) return;
+    if (typeof window.__setScale === 'function') window.__setScale(DEFAULT_ZOOM);
+    const s = window.__canvasScale || 1;
+    const node = document.querySelector(`.node[data-name-en="${nameEn}"]`);
     if (!node) {
-      // Fallback: fit full tree
-      const svg = document.getElementById('tree-svg');
-      if (svg && typeof fitToViewport === 'function') fitToViewport(viewport, svg);
+      // Fallback: center horizontally near the top
+      viewport.scrollLeft = (viewport.scrollWidth - viewport.clientWidth) / 2;
+      viewport.scrollTop = 0;
       return;
     }
     const rect = node.querySelector('rect');
@@ -126,7 +148,6 @@ function focusPerson(nameEn) {
     const nodeY = parseFloat(rect.getAttribute('y'));
     const nodeW = parseFloat(rect.getAttribute('width'));
     const nodeH = parseFloat(rect.getAttribute('height'));
-    const s = window.__canvasScale || 1;
     viewport.scrollLeft = nodeX * s - viewport.clientWidth / 2 + (nodeW * s) / 2;
     viewport.scrollTop  = nodeY * s - viewport.clientHeight / 2 + (nodeH * s) / 2;
   }, 150);

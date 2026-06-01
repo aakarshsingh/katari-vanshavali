@@ -50,7 +50,9 @@ function attachTransliterate(inputEl, outputEl) {
 
     debounceTimer = setTimeout(function() {
       if (_transCache.has(text)) {
-        _renderChips(container, _transCache.get(text), outputEl);
+        const cached = _transCache.get(text);
+        if (cached.length) outputEl.value = cached[0];
+        _renderChips(container, cached, outputEl);
         return;
       }
 
@@ -61,6 +63,8 @@ function attachTransliterate(inputEl, outputEl) {
           _showMessage(container, 'No suggestions — type Hindi directly');
         } else {
           _transCache.set(text, options);
+          // Auto-fill the best (first) option; show all as chips to replace.
+          outputEl.value = options[0];
           _renderChips(container, options, outputEl);
         }
       }).catch(function() {

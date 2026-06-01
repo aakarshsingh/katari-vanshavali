@@ -94,6 +94,7 @@
 
 .form-group input.devanagari {
   font-family: 'Noto Sans Devanagari', Georgia, serif;
+  font-size: 1.1rem;
 }
 
 .form-group input[readonly] {
@@ -133,13 +134,13 @@
 .chip {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
+  padding: 6px 14px;
   background: var(--chip-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
   font-family: 'Noto Sans Devanagari', Georgia, serif;
-  font-size: 0.8rem;
+  font-size: 1.05rem;
   color: var(--ink);
   transition: background 0.15s, border-color 0.15s;
   white-space: nowrap;
@@ -210,3 +211,13 @@
 #spouse-death-field label { color: #9a9388; }
 #death-field input,
 #spouse-death-field input { color: #6f685e; border-color: #d8d0c2; }
+
+/* Spouse section heading (labels inside drop the repeated "Spouse") */
+.spouse-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #5a4a30);
+  margin-bottom: 8px;
+}

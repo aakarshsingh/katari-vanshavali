@@ -6,7 +6,10 @@ const STRIP_H_GAP = 20;
 const STRIP_V_PAD = 20;
 // Traditional Vamshavali palette (muted Indian natural-dye tones).
 const INK = '#302B27';        // dark sepia ink — lines + text
-const FONT = "'Tiro Devanagari Hindi', Georgia, serif";
+// Node names use Noto (regular) — more legible at small sizes than Tiro's fine
+// serif; the decorative title keeps Tiro.
+const FONT = "'Noto Sans Devanagari', Georgia, serif";
+const HEADING_FONT = "'Tiro Devanagari Hindi', Georgia, serif";
 
 // Bloodline by generation (0 = root): fill + colored 2px border so it pops.
 const GEN_FILL = ['#F6E3E3', '#F7ECD5', '#E4E7D9', '#E0E5EA', '#EFE5DF'];
@@ -88,9 +91,16 @@ function renderTree(state) {
     + Math.max(0, ancestorChain.length - 1) * STRIP_H_GAP;
   const stripHeight = hasStrip ? STRIP_BOX_H + STRIP_V_PAD * 2 : 0;
 
-  // Center ancestor strip above the focal person (Bade Lal Singh)
+  // Center ancestor strip above the focal person, aligned to the focal couple's
+  // marriage-connector centre so the dotted drop meets the node cleanly.
   const focalPos = focalId ? layoutMap[focalId] : null;
-  const focalCenterX = PADDING + (focalPos ? focalPos.x + focalPos.width / 2 : maxX / 2);
+  let focalCenterX = PADDING + (focalPos ? focalPos.x + focalPos.width / 2 : maxX / 2);
+  if (focalPos && typeof NodeMetrics !== 'undefined' && personMap[focalId]) {
+    const fs = NodeMetrics.cardSpec(personMap[focalId], lang);
+    if (fs.isCouple) {
+      focalCenterX = PADDING + focalPos.x + fs.person.box.width + NodeMetrics.M.COUPLE_GAP / 2;
+    }
+  }
   const stripStartX = Math.max(PADDING, focalCenterX - stripTotalW / 2);
 
   const svgW = Math.max(maxX + PADDING * 2, stripStartX + stripTotalW + PADDING);
@@ -134,8 +144,32 @@ function renderTree(state) {
     }
   }
 
+  // True genealogical depth from the focal person (parent_depth + 1) — drives
+  // the generation colour. NOT the rendered row, so a node pushed down by the
+  // 2-row packing keeps its real generation colour.
+  const depthById = computeDepths(focalId, descendantRelationships);
+
   renderEdges(svg, layoutMap, descendantRelationships, nodeH, stripHeight, anchors);
-  renderNodes(svg, layout, personMap, lang, nodeH, stripHeight, focalId);
+  renderNodes(svg, layout, personMap, lang, nodeH, stripHeight, focalId, depthById);
+}
+
+// BFS from the focal person over parent→child edges → { id: depth } (focal = 0).
+function computeDepths(focalId, relationships) {
+  const childrenOf = {};
+  for (const r of relationships) {
+    (childrenOf[r.parent_id] = childrenOf[r.parent_id] || []).push(r.child_id);
+  }
+  const depth = {};
+  if (focalId == null) return depth;
+  depth[focalId] = 0;
+  const queue = [focalId];
+  while (queue.length) {
+    const id = queue.shift();
+    for (const c of (childrenOf[id] || [])) {
+      if (depth[c] === undefined) { depth[c] = depth[id] + 1; queue.push(c); }
+    }
+  }
+  return depth;
 }
 
 // Subtle alternating banding per generation row → easier to read generations.
@@ -167,7 +201,12 @@ function renderTitleHeader(svg, svgW, title) {
     'font-size': 26, fill: INK,
   });
   t.textContent = title;
-  t.setAttribute('font-family', FONT);
+  t.setAttribute('font-family', HEADING_FONT);
+  t.style.cursor = 'pointer';
+  t.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!window.__locked && typeof window.editTitle === 'function') window.editTitle();
+  });
   svg.appendChild(t);
 
   const half = Math.min(160, Math.max(70, title.length * 7));
@@ -310,7 +349,7 @@ function drawBox(group, boxX, y, h, box, gender, role, emphasis, depth) {
       class: cls,
       x: cx, y: top + i * M.LINE_NAME + M.LINE_NAME / 2,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': 13, fill: INK,
+      'font-size': 14, fill: INK,
     });
     t.textContent = line;
     t.setAttribute('font-family', FONT);
@@ -368,12 +407,7 @@ function addAffordances(g, person, unitX, unitW, y, nodeH) {
 function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
   const nodeGroup = svgEl('g', { class: 'nodes' });
   const metrics = (typeof NodeMetrics !== 'undefined') ? NodeMetrics : null;
-
-  // Generation index per node (by row y) → drives the lighten-per-generation fill.
-  const ys = [...new Set(layout.map(n => n.y))].sort((a, b) => a - b);
-  const genOf = {};
-  ys.forEach((yv, i) => { genOf[yv] = i; });
-  const maxGen = Math.max(1, ys.length - 1);
+  depthById = depthById || {};
 
   for (const pos of layout) {
     const person = personMap[pos.id];
@@ -381,7 +415,7 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
 
     const x = PADDING + pos.x;
     const y = PADDING + yOffset + pos.y;
-    const depth = genOf[pos.y] || 0;
+    const depth = depthById[pos.id] || 0;
     const isPatriarch = focalId && person.id === focalId;
 
     const g = svgEl('g', {
