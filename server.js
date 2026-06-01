@@ -1,0 +1,36 @@
+const express = require('express');
+const path = require('path');
+const { runMigrations } = require('./src/db/migrate');
+const treeRouter = require('./src/routes/tree');
+const personsRouter = require('./src/routes/persons');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.use('/api/tree', treeRouter);
+app.use('/api/persons', personsRouter);
+
+async function start() {
+  try {
+    await runMigrations();
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err.message);
+    process.exit(1);
+  }
+}
+
+if (require.main === module) {
+  start();
+}
+
+module.exports = app;

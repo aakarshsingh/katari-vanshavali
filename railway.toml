@@ -1,0 +1,3 @@
+[deploy]
+startCommand = "npm run migrate && npm start"
+healthcheckPath = "/health"
