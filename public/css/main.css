@@ -162,10 +162,12 @@ main {
 #tree-viewport {
   flex: 1;
   overflow: auto;
-  cursor: default;
+  cursor: grab;
   position: relative;
   background: #FDFBF7;
 }
+#tree-viewport.panning,
+#tree-viewport.panning #tree-svg { cursor: grabbing; }
 
 #tree-svg {
   display: block;

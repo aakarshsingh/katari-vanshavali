@@ -96,7 +96,7 @@ function initCanvas() {
       scrollLeft: viewport.scrollLeft,
       scrollTop: viewport.scrollTop,
     };
-    svg.style.cursor = 'grabbing';
+    viewport.classList.add('panning'); // → grabbing cursor (CSS)
     e.preventDefault();
   });
 
@@ -111,20 +111,7 @@ function initCanvas() {
   window.addEventListener('mouseup', () => {
     if (!isDragging) return;
     isDragging = false;
-    svg.style.cursor = '';
-  });
-
-  // Default cursor on SVG background
-  svg.addEventListener('mouseover', (e) => {
-    if (!isDragging && !isNodeTarget(e.target)) {
-      svg.style.cursor = 'grab';
-    }
-  });
-
-  svg.addEventListener('mouseout', (e) => {
-    if (!isDragging && !isNodeTarget(e.target)) {
-      svg.style.cursor = '';
-    }
+    viewport.classList.remove('panning');
   });
 }
 
