@@ -30,13 +30,13 @@ function getSidebarEls() {
     nameHi: document.getElementById('f-name-hi'),
     birth: document.getElementById('f-birth'),
     death: document.getElementById('f-death'),
-    deceased: document.getElementById('f-deceased'),
+    living: document.getElementById('f-living'),
     deathField: document.getElementById('death-field'),
     spouseEn: document.getElementById('f-spouse-en'),
     spouseHi: document.getElementById('f-spouse-hi'),
     spouseBirth: document.getElementById('f-spouse-birth'),
     spouseDeath: document.getElementById('f-spouse-death'),
-    spouseDeceased: document.getElementById('f-spouse-deceased'),
+    spouseLiving: document.getElementById('f-spouse-living'),
     spouseDeathField: document.getElementById('spouse-death-field'),
     notes: document.getElementById('f-notes'),
     married: document.getElementById('f-married'),
@@ -68,25 +68,26 @@ function setMarried(els, on) {
   if (els.spouseFields) els.spouseFields.hidden = !on;
 }
 
-// Death year is hidden by default (sensitive); the Deceased toggle reveals it.
-function setDeceased(els, on) {
-  if (els.deceased) els.deceased.checked = !!on;
-  if (els.deathField) els.deathField.hidden = !on;
-  if (!on && els.death) els.death.value = '';
+// "Living" is checked by default (positive framing). Death year is shown only
+// when Living is UNchecked — so it stays hidden for the living, esp. children.
+function setLiving(els, alive) {
+  if (els.living) els.living.checked = !!alive;
+  if (els.deathField) els.deathField.hidden = !!alive;
+  if (alive && els.death) els.death.value = '';
 }
 
-function setSpouseDeceased(els, on) {
-  if (els.spouseDeceased) els.spouseDeceased.checked = !!on;
-  if (els.spouseDeathField) els.spouseDeathField.hidden = !on;
-  if (!on && els.spouseDeath) els.spouseDeath.value = '';
+function setSpouseLiving(els, alive) {
+  if (els.spouseLiving) els.spouseLiving.checked = !!alive;
+  if (els.spouseDeathField) els.spouseDeathField.hidden = !!alive;
+  if (alive && els.spouseDeath) els.spouseDeath.value = '';
 }
 
 function collectForm(els) {
   const genderEl = els.form.querySelector('[name="gender"]:checked');
   const spouseGenderEl = els.form.querySelector('[name="spouse_gender"]:checked');
   const married = !!(els.married && els.married.checked);
-  const deceased = !!(els.deceased && els.deceased.checked);
-  const spouseDeceased = married && !!(els.spouseDeceased && els.spouseDeceased.checked);
+  const deceased = !(els.living && els.living.checked);          // unchecked Living = deceased
+  const spouseDeceased = married && !(els.spouseLiving && els.spouseLiving.checked);
   // When not married, spouse data is cleared; death year only when "Deceased".
   return {
     name_en: els.nameEn.value.trim(),
@@ -123,17 +124,17 @@ function populateForm(els, person) {
   if (spouseGenderRadio) spouseGenderRadio.checked = true;
   // A person is "married" if they have a spouse name recorded.
   setMarried(els, !!(person.spouse_en || person.spouse_hi));
-  // "Deceased" if flagged, or a death year exists (back-compat with old data).
-  setDeceased(els, !!(person.deceased || person.death_year != null));
-  setSpouseDeceased(els, !!(person.spouse_deceased || person.spouse_death_year != null));
+  // Living unless flagged deceased or a death year exists (back-compat).
+  setLiving(els, !(person.deceased || person.death_year != null));
+  setSpouseLiving(els, !(person.spouse_deceased || person.spouse_death_year != null));
 }
 
 function resetForm(els) {
   els.form.reset();
   clearError(els.error);
   setMarried(els, false);
-  setDeceased(els, false);
-  setSpouseDeceased(els, false);
+  setLiving(els, true);
+  setSpouseLiving(els, true);
   const btnAddChild = document.getElementById('btn-add-child');
   if (btnAddChild) btnAddChild.hidden = true;
 }
@@ -307,8 +308,8 @@ function initSidebar() {
   els.form && els.form.addEventListener('submit', handleSubmit);
   els.btnDelete && els.btnDelete.addEventListener('click', handleDelete);
   els.married && els.married.addEventListener('change', () => setMarried(els, els.married.checked));
-  els.deceased && els.deceased.addEventListener('change', () => setDeceased(els, els.deceased.checked));
-  els.spouseDeceased && els.spouseDeceased.addEventListener('change', () => setSpouseDeceased(els, els.spouseDeceased.checked));
+  els.living && els.living.addEventListener('change', () => setLiving(els, els.living.checked));
+  els.spouseLiving && els.spouseLiving.addEventListener('change', () => setSpouseLiving(els, els.spouseLiving.checked));
 
   const btnAddChild = document.getElementById('btn-add-child');
   btnAddChild && btnAddChild.addEventListener('click', () => {

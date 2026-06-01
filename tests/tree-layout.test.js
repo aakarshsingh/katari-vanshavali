@@ -49,6 +49,21 @@ describe('computeLayout', () => {
       expect(leftEdge).toBeGreaterThanOrEqual(rightEdge);
     }
   });
+
+  test('variable widths (couples): no overlap; parent centered over children', () => {
+    const persons = [{ id: 'p' }, { id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const widthOf = { p: 158, a: 330, b: 158, c: 330 }; // a, c are couples
+    const rels = [['p', 'a'], ['p', 'b'], ['p', 'c']].map(([x, y]) => ({ parent_id: x, child_id: y }));
+    const layout = computeLayout(persons, rels, widthOf);
+    const by = Object.fromEntries(layout.map(n => [n.id, n]));
+    expect(by.a.width).toBe(330);
+    const kids = ['a', 'b', 'c'].map(id => by[id]).sort((m, n) => m.x - n.x);
+    for (let i = 0; i < kids.length - 1; i++) {
+      expect(kids[i].x + kids[i].width).toBeLessThanOrEqual(kids[i + 1].x + 0.001);
+    }
+    const spanCenter = ((by.a.x + by.a.width / 2) + (by.c.x + by.c.width / 2)) / 2;
+    expect(Math.abs((by.p.x + by.p.width / 2) - spanCenter)).toBeLessThan(0.5);
+  });
 });
 
 describe('computeGroupedLayout (variable width + couples)', () => {

@@ -31,7 +31,7 @@ function computeLayout(persons, relationships, widthOf) {
   const positions = {};
   const modifiers = {};
 
-  assignPreliminary(root, childrenOf, positions, modifiers);
+  assignPreliminary(root, childrenOf, positions, modifiers, getW);
   const finalPositions = [];
   collectFinal(root, 0, childrenOf, positions, modifiers, finalPositions, 0);
 
@@ -62,8 +62,12 @@ function findRoots(persons, relationships) {
   return persons.filter(p => !hasParent.has(p.id)).map(p => p.id);
 }
 
-// Assigns preliminary x positions (Reingold-Tilford first pass).
-function assignPreliminary(nodeId, childrenOf, positions, modifiers) {
+// Reingold-Tilford first pass with TRUE per-depth contours and variable node
+// widths. prelim = node's LEFT edge. Each child is placed only as far right as
+// its left contour requires against the combined right contour of all previously
+// placed siblings — so subtrees nestle (tight packing), and couples (wider
+// nodes) are spaced by their real widths.
+function assignPreliminary(nodeId, childrenOf, positions, modifiers, getW) {
   const children = childrenOf[nodeId] || [];
 
   if (children.length === 0) {
@@ -73,53 +77,54 @@ function assignPreliminary(nodeId, childrenOf, positions, modifiers) {
   }
 
   for (const child of children) {
-    assignPreliminary(child, childrenOf, positions, modifiers);
+    assignPreliminary(child, childrenOf, positions, modifiers, getW);
   }
 
-  // Place children without overlap
-  let cursor = 0;
+  let acc = null; // combined right contour {depth: rightEdge} of placed siblings
   for (let i = 0; i < children.length; i++) {
-    if (i === 0) {
-      positions[children[i]].prelim = 0;
-    } else {
-      const prevRight = rightContour(children[i - 1], childrenOf, positions, modifiers);
-      const currLeft = leftContour(children[i], childrenOf, positions, modifiers);
-      const shift = prevRight - currLeft + NODE_WIDTH + H_GAP;
-      if (shift > 0) {
-        positions[children[i]].prelim += shift;
-        modifiers[children[i]] = (modifiers[children[i]] || 0) + shift;
-        cursor += shift;
+    const c = children[i];
+    if (i > 0) {
+      const cl = contourOf(c, childrenOf, positions, modifiers, getW, 'left');
+      let shift = 0;
+      for (const d in cl) {
+        if (acc[d] !== undefined) {
+          const need = acc[d] - cl[d] + H_GAP;
+          if (need > shift) shift = need;
+        }
       }
+      if (shift > 0) {
+        positions[c].prelim += shift;
+        modifiers[c] = (modifiers[c] || 0) + shift;
+      }
+    }
+    const cr = contourOf(c, childrenOf, positions, modifiers, getW, 'right');
+    if (!acc) acc = {};
+    for (const d in cr) {
+      if (acc[d] === undefined || cr[d] > acc[d]) acc[d] = cr[d];
     }
   }
 
-  // Centre parent over children
-  const firstChild = positions[children[0]].prelim;
-  const lastChild = positions[children[children.length - 1]].prelim;
-  positions[nodeId] = { prelim: (firstChild + lastChild) / 2 };
+  // Centre parent (by its own width) over the children's centre span.
+  const first = children[0];
+  const last = children[children.length - 1];
+  const firstCenter = positions[first].prelim + getW(first) / 2;
+  const lastCenter = positions[last].prelim + getW(last) / 2;
+  positions[nodeId] = { prelim: (firstCenter + lastCenter) / 2 - getW(nodeId) / 2 };
   modifiers[nodeId] = modifiers[nodeId] || 0;
 }
 
-// Returns the rightmost x of the rightmost node at each depth.
-function rightContour(nodeId, childrenOf, positions, modifiers, mod = 0, depth = 0, contour = {}) {
-  const x = positions[nodeId].prelim + mod;
-  contour[depth] = contour[depth] !== undefined ? Math.max(contour[depth], x) : x;
-  const children = childrenOf[nodeId] || [];
-  for (const child of children) {
-    rightContour(child, childrenOf, positions, modifiers, mod + (modifiers[child] || 0), depth + 1, contour);
+// Per-depth contour of a subtree. side 'left' → min left edge per depth;
+// 'right' → max right edge (left edge + node width) per depth.
+function contourOf(nodeId, childrenOf, positions, modifiers, getW, side, mod = 0, depth = 0, out = {}) {
+  const leftEdge = positions[nodeId].prelim + mod;
+  const edge = side === 'left' ? leftEdge : leftEdge + getW(nodeId);
+  if (out[depth] === undefined) out[depth] = edge;
+  else out[depth] = side === 'left' ? Math.min(out[depth], edge) : Math.max(out[depth], edge);
+  // Standard RT: descend adding THIS node's modifier (shifts its whole subtree).
+  for (const child of (childrenOf[nodeId] || [])) {
+    contourOf(child, childrenOf, positions, modifiers, getW, side, mod + (modifiers[nodeId] || 0), depth + 1, out);
   }
-  return Math.max(...Object.values(contour));
-}
-
-// Returns the leftmost x of the leftmost node at each depth.
-function leftContour(nodeId, childrenOf, positions, modifiers, mod = 0, depth = 0, contour = {}) {
-  const x = positions[nodeId].prelim + mod;
-  contour[depth] = contour[depth] !== undefined ? Math.min(contour[depth], x) : x;
-  const children = childrenOf[nodeId] || [];
-  for (const child of children) {
-    leftContour(child, childrenOf, positions, modifiers, mod + (modifiers[child] || 0), depth + 1, contour);
-  }
-  return Math.min(...Object.values(contour));
+  return out;
 }
 
 // Second pass: walk tree accumulating modifier, compute final (x, y).
@@ -128,8 +133,9 @@ function collectFinal(nodeId, modAccum, childrenOf, positions, modifiers, result
   const y = depth * (unitHeight() + V_GAP);
   result.push({ id: nodeId, x, y });
   const children = childrenOf[nodeId] || [];
+  // Standard RT: descend adding THIS node's modifier (shifts its whole subtree).
   for (const child of children) {
-    collectFinal(child, modAccum + (modifiers[child] || 0), childrenOf, positions, modifiers, result, depth + 1);
+    collectFinal(child, modAccum + (modifiers[nodeId] || 0), childrenOf, positions, modifiers, result, depth + 1);
   }
 }
 

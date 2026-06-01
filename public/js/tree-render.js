@@ -72,11 +72,9 @@ function renderTree(state) {
   // Per-node widths (couple units are wider) drive the layout spacing.
   const widthOf = (typeof NodeMetrics !== 'undefined') ? NodeMetrics.widthMap(persons, lang) : null;
 
-  // Compute descendant layout first — needed to know focal person's x position
-  // Grouped layout: each top-level branch is a compact group, children wrap in rows
-  const layout = (typeof computeGroupedLayout === 'function' && split.focalId)
-    ? computeGroupedLayout(descendantPersons, descendantRelationships, split.focalId, widthOf)
-    : computeLayout(descendantPersons, descendantRelationships, widthOf);
+  // Reingold–Tilford tidy layout (per-depth contours, variable widths) rooted at
+  // the focal person — tighter packing than the old grouped layout.
+  const layout = computeLayout(descendantPersons, descendantRelationships, widthOf);
   if (!layout || layout.length === 0) return;
 
   const nodeH = layout[0].height; // uniform across the tree

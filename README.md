@@ -205,5 +205,5 @@ All IDs are UUIDs. A single tree row owns all persons and relationships; cascadi
 | See all controls | **?** help button in the toolbar |
 | Lock / unlock editing | Lock toggle in the toolbar (locked by default; unlock to edit) |
 | Close the form | Click any empty area of the canvas |
-| Record a death year | Tick **Deceased** in the form (hidden by default) |
+| Record a death year | Untick **Living** in the form (checked by default, so death year stays hidden) |
 | Edit title | Unlock, then click the title heading on the canvas |
