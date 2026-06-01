@@ -1,7 +1,7 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const PADDING = 80;
-const STRIP_BOX_W = 130;
-const STRIP_BOX_H = 44;
+const STRIP_BOX_W = 150;
+const STRIP_BOX_H = 50;
 const STRIP_H_GAP = 16;
 const STRIP_V_PAD = 24;
 const INK = '#1a1008';
@@ -9,7 +9,7 @@ const FILL_MALE = '#fff8f0';
 const FILL_FEMALE = '#8b1a1a';
 const FILL_ANCESTOR = '#f5ede0';
 const TEXT_MUTED = '#6b5a44';
-const TEXT_SPOUSE = '#8b4513';
+const TEXT_SPOUSE = '#cc2200';
 
 function svgEl(tag, attrs) {
   const el = document.createElementNS(SVG_NS, tag);
@@ -172,13 +172,13 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
     let nameY, spouseY, yearsY;
 
     if (lineCount === 3) {
-      nameY   = y + nodeH * 0.26;
+      nameY   = y + nodeH * 0.28;
       spouseY = y + nodeH * 0.52;
-      yearsY  = y + nodeH * 0.78;
+      yearsY  = y + nodeH * 0.76;
     } else if (lineCount === 2) {
-      nameY = y + nodeH * 0.33;
-      spouseY = y + nodeH * 0.67;
-      yearsY  = y + nodeH * 0.67;
+      nameY   = y + nodeH * 0.35;
+      spouseY = y + nodeH * 0.68;
+      yearsY  = y + nodeH * 0.68;
     } else {
       nameY = y + nodeH * 0.50;
     }
@@ -193,14 +193,15 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
     g.appendChild(nameEl);
 
     if (hasSpouse) {
+      const label = lang === 'hi' ? 'पत्नी: ' : 'w. ';
       const spouseEl = svgEl('text', {
         class: 'name-spouse',
         x: cx, y: spouseY,
         'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        'font-size': 10, 'font-style': 'italic',
-        fill: isFemale ? '#e8d5b7' : TEXT_SPOUSE,
+        'font-size': 12,
+        fill: isFemale ? '#e8a090' : TEXT_SPOUSE,
       });
-      spouseEl.textContent = `(${spouse})`;
+      spouseEl.textContent = label + spouse;
       g.appendChild(spouseEl);
     }
 

@@ -1,7 +1,7 @@
-const NODE_WIDTH = 160;
-const NODE_HEIGHT = 70;
-const H_GAP = 24;
-const V_GAP = 60;
+const NODE_WIDTH = 170;
+const NODE_HEIGHT = 90;
+const H_GAP = 12;
+const V_GAP = 50;
 
 // Reingold-Tilford layout for a rooted tree.
 // Returns [{id, x, y, width, height}] — pure function, no DOM access.
