@@ -96,6 +96,27 @@
   font-family: 'Noto Sans Devanagari', Georgia, serif;
 }
 
+.form-group input[readonly] {
+  background: #f5ede0;
+  color: var(--ink-muted);
+  cursor: default;
+  border-color: transparent;
+}
+
+.form-group input[readonly]:focus {
+  border-color: transparent;
+  outline: none;
+}
+
+.field-hint {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--ink-faint, #b0a090);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
 .form-group textarea {
   resize: vertical;
   min-height: 56px;
