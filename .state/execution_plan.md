@@ -40,6 +40,7 @@ Fresh repo. `package.json` exists (bare init). `docs/vanshavali.pdf` and `docs/s
 | 13 | Transliteration Chips | Completed |
 | 14 | Export (PNG + PDF) | Completed |
 | 15 | Railway Deploy + Smoke Test | Pending |
+| 16 | README + Documentation | Completed |
 
 ---
 
@@ -883,3 +884,46 @@ CREATE TABLE IF NOT EXISTS relationship (
 - Implementation notes:
 - Deviations from plan:
 - Field notes:
+
+---
+
+### Phase 16: README + Documentation
+
+**Status:** Completed
+
+**Target Files:**
+- `README.md` — overwrite (currently a one-line stub)
+
+**Changes:**
+- Full project README covering:
+  - Project description and purpose (Vanshavali — Indian genealogical tree builder)
+  - Feature list (SVG tree, Hindi/English bilingual, transliteration chips, PNG/PDF export, pan/zoom)
+  - Stack (Node.js + Express + PostgreSQL + vanilla JS)
+  - Local development setup (prerequisites, clone, npm install, .env, migrate, seed, start)
+  - Seeding from the grandfather's PDF (`npm run seed:pdf` + `npm run seed`)
+  - Railway deployment guide (create project, add PostgreSQL, set env vars, deploy, seed, verify)
+  - Usage guide (adding people, editing, exporting)
+
+**Verification:**
+- [x] `README.md` exists with all sections present
+- [x] `npm test` still passes
+
+**Definition of Done:**
+- [x] README readable end-to-end by a new developer; Railway deployment steps complete and accurate
+
+**Self-Audit Checklist:**
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+
+**Completion Record:**
+- Implementation notes: README.md rewritten from one-line stub. Covers: features, stack table, local dev setup (prerequisites → clone → install → .env → migrate → seed → start), PDF seeding workflow, Railway deployment guide (6 steps matching Phase 15 plan exactly), project structure tree, data model, usage quick-reference table. `npm test` 15/15 pass.
+- Deviations from plan: None.
+- Field notes: None.
