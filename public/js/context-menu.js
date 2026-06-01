@@ -71,14 +71,6 @@ function initCtxMenu() {
     if (e.key === 'Escape') hideCtxMenu();
   });
 
-  // SVG background click → open new root/child form
-  const svg = document.getElementById('tree-svg');
-  if (svg) {
-    svg.addEventListener('click', (e) => {
-      if (e.target.closest('.node')) return;
-      if (typeof openNew === 'function') openNew(null);
-    });
-  }
 }
 
 window.showCtxMenu = showCtxMenu;

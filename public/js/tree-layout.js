@@ -119,4 +119,60 @@ function collectFinal(nodeId, modAccum, childrenOf, positions, modifiers, result
   }
 }
 
-if (typeof module !== 'undefined') module.exports = { computeLayout };
+function splitTree(persons, relationships, focalNameEn) {
+  if (!persons || persons.length === 0) {
+    return { ancestorChain: [], focalId: null, descendantPersons: persons || [], descendantRelationships: relationships || [] };
+  }
+
+  const childrenOf = buildAdjacency(persons, relationships);
+  const roots = findRoots(persons, relationships);
+  const root = roots.length > 0 ? roots[0] : persons[0].id;
+  const personById = Object.fromEntries(persons.map(p => [p.id, p]));
+
+  const ancestorChain = [];
+  let current = root;
+  let focalId = null;
+
+  while (current) {
+    const person = personById[current];
+    if (!person) break;
+
+    const nameLower = (person.name_en || '').toLowerCase();
+    const targetLower = (focalNameEn || '').toLowerCase();
+    const nameMatch = targetLower && nameLower.includes(targetLower);
+
+    if (nameMatch) {
+      focalId = current;
+      break;
+    }
+
+    const children = childrenOf[current] || [];
+    if (children.length !== 1) {
+      focalId = current;
+      break;
+    }
+
+    ancestorChain.push(current);
+    current = children[0];
+  }
+
+  if (!focalId) focalId = current || root;
+
+  const descendantIds = new Set();
+  function collect(id) {
+    descendantIds.add(id);
+    for (const child of (childrenOf[id] || [])) collect(child);
+  }
+  collect(focalId);
+
+  return {
+    ancestorChain,
+    focalId,
+    descendantPersons: persons.filter(p => descendantIds.has(p.id)),
+    descendantRelationships: relationships.filter(
+      r => descendantIds.has(r.parent_id) && descendantIds.has(r.child_id)
+    ),
+  };
+}
+
+if (typeof module !== 'undefined') module.exports = { computeLayout, splitTree };

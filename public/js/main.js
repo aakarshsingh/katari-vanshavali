@@ -25,6 +25,7 @@ async function init() {
     } else {
       hideEmptyHint();
       console.log(`Tree loaded: ${data.persons.length} persons`);
+      focusPerson('Bade Lal Singh');
     }
   } catch (err) {
     console.error('Failed to load tree:', err.message);
@@ -34,6 +35,29 @@ async function init() {
   wireLangToggle();
   wireTitleEdit();
   wireExportDialog();
+}
+
+function focusPerson(nameEn) {
+  setTimeout(() => {
+    const viewport = document.getElementById('tree-viewport');
+    const node = document.querySelector(`.node[data-name-en="${nameEn}"]`);
+    if (!viewport) return;
+    if (!node) {
+      // Fallback: fit full tree
+      const svg = document.getElementById('tree-svg');
+      if (svg && typeof fitToViewport === 'function') fitToViewport(viewport, svg);
+      return;
+    }
+    const rect = node.querySelector('rect');
+    if (!rect) return;
+    const nodeX = parseFloat(rect.getAttribute('x'));
+    const nodeY = parseFloat(rect.getAttribute('y'));
+    const nodeW = parseFloat(rect.getAttribute('width'));
+    const nodeH = parseFloat(rect.getAttribute('height'));
+    const s = window.__canvasScale || 1;
+    viewport.scrollLeft = nodeX * s - viewport.clientWidth / 2 + (nodeW * s) / 2;
+    viewport.scrollTop  = nodeY * s - viewport.clientHeight / 2 + (nodeH * s) / 2;
+  }, 150);
 }
 
 function showEmptyHint() {

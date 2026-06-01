@@ -20,6 +20,7 @@ function applyScale(viewport, svg) {
   svg.style.width = naturalW + 'px';
   svg.style.height = naturalH + 'px';
   viewport.style.overflow = 'auto';
+  window.__canvasScale = scale;
 }
 
 function zoomBy(delta, viewport, svg) {
@@ -58,8 +59,9 @@ function initCanvas() {
   btnOut && btnOut.addEventListener('click', () => zoomBy(-SCALE_STEP, viewport, svg));
   btnFit && btnFit.addEventListener('click', () => fitToViewport(viewport, svg));
 
-  // Mouse wheel zoom
+  // Ctrl+wheel zooms; plain wheel scrolls natively
   viewport.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
     e.preventDefault();
     const delta = e.deltaY < 0 ? SCALE_STEP : -SCALE_STEP;
     zoomBy(delta, viewport, svg);

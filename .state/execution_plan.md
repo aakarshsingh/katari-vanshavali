@@ -39,9 +39,14 @@ Fresh repo. `package.json` exists (bare init). `docs/vanshavali.pdf` and `docs/s
 | 12 | Sidebar Form + Context Menu | Completed |
 | 13 | Transliteration Chips | Completed |
 | 14 | Export (PNG + PDF) | Completed |
-| 15 | Railway Deploy + Smoke Test | Pending |
+| 15 | Railway Deploy + Smoke Test | Completed |
 | 16 | README + Documentation | Completed |
-| 17 | Auto-seed on First Boot | Active |
+| 17 | Auto-seed on First Boot | Completed |
+| 9A | Amend — Layout: Ancestor Split + Focal Root | Pending |
+| 10A | Amend — Renderer: Ancestor Strip + Spouse + Lang-Only Nodes | Pending |
+| 11A | Amend — Pan/Zoom: Ctrl+Wheel Zoom, Plain Scroll = Pan | Pending |
+| 12A | Amend — Context Menu: Remove Background Click | Pending |
+| 18 | Initial View — Center on Bade Lal Singh | Pending |
 
 ---
 
@@ -846,7 +851,7 @@ CREATE TABLE IF NOT EXISTS relationship (
 
 ### Phase 15: Railway Deploy + Smoke Test
 
-**Status:** Active
+**Status:** Completed
 
 **Target Files:**
 - `railway.toml` — verify (created in Phase 1; no changes expected)
@@ -882,9 +887,9 @@ CREATE TABLE IF NOT EXISTS relationship (
 - [ ] Changes are minimum necessary
 
 **Completion Record:**
-- Implementation notes:
-- Deviations from plan:
-- Field notes:
+- Implementation notes: App live at https://katari-vanshavali-production.up.railway.app/. Fixed DATABASE_URL (was set to placeholder template string in Railway Variables tab — deleted manual override, Railway now injects real URL from linked Postgres service). Health check confirmed: GET /health → {"status":"ok"}.
+- Deviations from plan: DATABASE_URL misconfiguration required triage before deploy succeeded.
+- Field notes: Seeding and full round-trip UI verification deferred — UI pivot (phases 9A–18) needed first.
 
 ---
 
@@ -928,3 +933,231 @@ CREATE TABLE IF NOT EXISTS relationship (
 - Implementation notes: README.md rewritten from one-line stub. Covers: features, stack table, local dev setup (prerequisites → clone → install → .env → migrate → seed → start), PDF seeding workflow, Railway deployment guide (6 steps matching Phase 15 plan exactly), project structure tree, data model, usage quick-reference table. `npm test` 15/15 pass.
 - Deviations from plan: None.
 - Field notes: None.
+
+---
+
+### Phase 17: Auto-seed on First Boot
+
+**Status:** Completed
+
+**Completion Record:**
+- Implementation notes: Committed in 9401862. Auto-seeds from docs/seed.json on first boot if DB is empty.
+- Deviations from plan: None.
+- Field notes: seed.json names corrected; gitignore updated.
+
+---
+
+### Phase 9A: Amend — Layout: Ancestor Split + Focal Root
+
+**Status:** Pending
+**Reason:** Current layout renders ancestor chain (Shankhi Singh → … → Bade Lal Singh) as a vertical left-column chain. Per annotated PDF, ancestors should be separated from the descendant tree.
+
+**Target Files:**
+- `public/js/tree-layout.js`
+
+**Changes:**
+- Export new function `splitTree(persons, relationships, focalNameEn)`:
+  - Walk from root; find focal person by matching `name_en === focalNameEn` (case-insensitive fallback: first person with >1 child)
+  - Collect `ancestorChain`: ordered list [oldest → focal's parent]
+  - Collect `focalId` and all persons reachable below focal as `descendantPersons` + `descendantRelationships`
+  - Return `{ ancestorChain, focalId, descendantPersons, descendantRelationships }`
+- `computeLayout` unchanged — called only on descendant subset
+
+**Verification:**
+- [ ] `splitTree` returns non-empty ancestorChain for seeded data
+- [ ] `descendantPersons` does not include ancestor-chain members
+- [ ] `npm test` still passes
+
+**Definition of Done:**
+- [ ] Correct split for seeded family data
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase 10A: Amend — Renderer: Ancestor Strip + Spouse + Lang-Only Nodes
+
+**Status:** Pending
+**Reason:** (1) Nodes show both EN+HI names; should show only current lang. (2) Spouse not rendered; should appear inline in node. (3) Ancestor chain should render as horizontal strip above main tree per annotated PDF.
+
+**Target Files:**
+- `public/js/tree-render.js`
+
+**Changes:**
+- **Node content** — replace primary+secondary+years with:
+  - Line 1: name in current lang only, 13px bold
+  - Line 2: `(spouse_en)` or `(spouse_hi)` per lang, 10px muted italic, only if spouse exists
+  - Line 3: years, 9px muted, only if exists
+  - Y positions computed dynamically based on which lines are present
+- **`renderAncestorStrip(svg, ancestorChain, personMap, lang, offsetY)`**:
+  - Horizontal row of compact boxes (120×40px) connected by `—` lines
+  - Each box: name in current lang only, 11px
+  - Fill: `#f5ede0` to distinguish from main tree nodes
+  - Rendered at top of SVG above main tree
+  - Returns strip height so main tree y-offset can be adjusted
+- **`renderTree(state)`** updated:
+  1. Call `splitTree(persons, relationships, 'Bade Lal Singh')`
+  2. Call `renderAncestorStrip(...)` → get stripHeight
+  3. Call `computeLayout(descendantPersons, descendantRelationships)` offset by stripHeight + gap
+  4. Render descendant tree as before
+
+**Verification:**
+- [ ] Ancestor strip renders horizontally at top
+- [ ] Main tree starts below strip
+- [ ] Nodes show one language only (switches on lang toggle)
+- [ ] Spouse shown in parens below name when present
+- [ ] `npm test` still passes
+
+**Definition of Done:**
+- [ ] All three changes visible and correct on live Railway URL
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase 11A: Amend — Pan/Zoom: Ctrl+Wheel Zoom, Plain Scroll = Pan
+
+**Status:** Pending
+**Reason:** Plain scroll wheel currently zooms, blocking natural pan. User expects scroll to pan, Ctrl+scroll to zoom.
+
+**Target Files:**
+- `public/js/canvas.js`
+
+**Changes:**
+- Wheel handler: add `if (!e.ctrlKey) return;` guard before zoom logic; remove `preventDefault()` for non-Ctrl wheel so browser handles native scroll
+- After every `applyScale` call: set `window.__canvasScale = scale` (needed by Phase 18)
+
+**Verification:**
+- [ ] Plain scroll pans the viewport
+- [ ] Ctrl+scroll zooms
+- [ ] Zoom In/Out buttons still work
+- [ ] `npm test` still passes
+
+**Definition of Done:**
+- [ ] Scroll pans, Ctrl+scroll zooms on live URL
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase 12A: Amend — Context Menu: Remove Background Click
+
+**Status:** Pending
+**Reason:** Clicking blank canvas area opens "Add Person" sidebar unintentionally. Editing must be intentional via right-click context menu only.
+
+**Target Files:**
+- `public/js/context-menu.js`
+
+**Changes:**
+- Delete the SVG background `click` event listener block (the one calling `openNew(null)`)
+- No other changes — right-click context menu remains the only add/edit/delete entry point
+
+**Verification:**
+- [ ] Clicking blank canvas does nothing
+- [ ] Right-click on node still shows context menu
+- [ ] `npm test` still passes
+
+**Definition of Done:**
+- [ ] Background click is inert on live URL
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase 18: Initial View — Center on Bade Lal Singh
+
+**Status:** Pending
+**Reason:** On page load the view shows top-left (oldest ancestor). Bade Lal Singh should be the first visible focal point.
+
+**Target Files:**
+- `public/js/main.js`
+
+**Changes:**
+- Add `focusPerson(nameEn)` function:
+  - `setTimeout(100)` to allow render to settle
+  - Find `document.querySelector('.node[data-name-en="Bade Lal Singh"]')`
+  - Read its `rect` x/y/width/height SVG attributes
+  - Multiply by `window.__canvasScale || 1`
+  - Set `viewport.scrollLeft` and `viewport.scrollTop` to center node in viewport
+  - Fallback: if node not found, call `window.fitToViewport` equivalent (fit full tree)
+- Call `focusPerson('Bade Lal Singh')` after `setState(...)` in `init()`
+
+**Verification:**
+- [ ] On page load, Bade Lal Singh node is visible and centered
+- [ ] Fallback fires without error if name not matched
+- [ ] `npm test` still passes
+
+**Definition of Done:**
+- [ ] Bade Lal Singh centered on load on live Railway URL
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
