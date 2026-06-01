@@ -41,7 +41,7 @@ function updateMinimap() {
   clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   const hint = clone.querySelector('#empty-hint');
   if (hint) hint.remove();
-  clone.querySelectorAll('.affordance').forEach((el) => el.remove());
+  clone.querySelectorAll('.affordance, .collapse-toggle').forEach((el) => el.remove());
 
   e.holder.innerHTML = '';
   e.holder.appendChild(clone);
@@ -94,6 +94,9 @@ function initMinimap() {
   if (!e.wrap) return;
 
   e.toggle && e.toggle.addEventListener('click', () => _setMinimapVisible(!_mmVisible));
+
+  // Minimap is a critical nav tool for a wide tree — on by default.
+  _setMinimapVisible(true);
 
   // Keep the rectangle synced with scrolling/zooming.
   e.viewport && e.viewport.addEventListener('scroll', updateMinimapRect, { passive: true });

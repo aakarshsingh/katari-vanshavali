@@ -23,7 +23,7 @@ function _buildExportClone() {
 
   const hint = clone.querySelector('#empty-hint');
   if (hint) hint.remove();
-  clone.querySelectorAll('.affordance').forEach((el) => el.remove());
+  clone.querySelectorAll('.affordance, .collapse-toggle').forEach((el) => el.remove());
 
   return clone;
 }

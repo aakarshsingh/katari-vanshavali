@@ -419,23 +419,26 @@ main {
   bottom: 14px;
   z-index: 50;
   padding: 4px;
-  background: var(--cream);
-  border: 2px solid var(--ink);
-  border-radius: 4px;
-  box-shadow: 0 4px 14px rgba(26, 16, 8, 0.25);
+  background: rgba(253, 251, 247, 0.9);
+  border: 1px solid #C4BCAF;
+  border-radius: 5px;
+  box-shadow: 0 4px 16px rgba(26, 16, 8, 0.22);
+  backdrop-filter: blur(1px);
 }
 #minimap[hidden] { display: none; }
 #minimap-holder {
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  background: var(--cream);
+  background: rgba(253, 251, 247, 0.5);
 }
 #minimap-holder svg { display: block; }
+/* Minimap thumbnail: hide text, keep the scaled node rects */
+#minimap-holder text { display: none; }
 #minimap-rect {
   position: absolute;
-  border: 1.5px solid var(--red-female);
-  background: rgba(139, 26, 26, 0.12);
+  border: 1.5px solid #302B27;
+  background: rgba(48, 43, 39, 0.08);
   pointer-events: none;
   top: 0;
   left: 0;
@@ -461,11 +464,7 @@ main {
 }
 
 /* T9: stronger minimap framing so it doesn't blend into the canvas */
-#minimap {
-  border-color: var(--ink);
-  box-shadow: 0 6px 22px rgba(26, 16, 8, 0.40);
-}
-#minimap-holder { border: 1px solid var(--border); }
+#minimap-holder { border: 1px solid #C4BCAF; }
 
 /* ── Edit lock (read-only by default) ──────────────────────────────────── */
 body.locked .node { cursor: default; }
@@ -474,3 +473,54 @@ body.locked #btn-add-person { display: none; }
 body.locked #tree-title { border-bottom-color: transparent; cursor: default; }
 body.locked .title-hint { display: none; }
 #btn-lock[aria-pressed="false"] { background: var(--chip-bg); border-color: var(--ink-muted); }
+
+/* ── Search (toolbar) ──────────────────────────────────────────────────── */
+#search-wrap { position: relative; display: flex; align-items: center; margin-left: 4px; }
+#search-wrap .search-icon {
+  width: 14px; height: 14px; position: absolute; left: 8px;
+  color: var(--ink-muted); pointer-events: none;
+}
+#search-input {
+  padding: 5px 8px 5px 26px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.8rem;
+  width: 150px;
+  outline: none;
+}
+#search-input:focus { border-color: var(--accent); width: 190px; }
+#search-results {
+  position: absolute;
+  top: 100%; left: 0;
+  margin-top: 4px;
+  min-width: 230px;
+  max-height: 300px;
+  overflow: auto;
+  background: var(--cream);
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgba(26, 16, 8, 0.25);
+  z-index: 120;
+}
+#search-results[hidden] { display: none; }
+.search-item {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 7px 12px; cursor: pointer; font-size: 0.85rem; color: var(--ink);
+}
+.search-item:hover, .search-item.active { background: var(--chip-bg); }
+.search-item .hi { font-family: 'Noto Sans Devanagari', serif; font-size: 0.8rem; color: var(--ink-muted); }
+.search-empty { padding: 8px 12px; color: var(--ink-faint); font-style: italic; font-size: 0.8rem; }
+
+/* Highlight the located node briefly */
+@keyframes searchPulse { 0%,100% { stroke-width: 2; } 50% { stroke-width: 5; } }
+.node.search-hit rect { stroke: #9E3A46 !important; animation: searchPulse 0.7s ease 3; }
+
+/* Chain highlight (hover in locked/view mode) — light up the lineage to root */
+.node.chain rect { stroke: #9E3A46 !important; stroke-width: 3 !important; }
+
+/* Collapse / expand toggle (always visible on parents) */
+.collapse-toggle { cursor: pointer; }
+.collapse-toggle:hover circle { fill: #e8dcc0; }

@@ -68,7 +68,79 @@ async function init() {
   wireHelp();
   wireLock();
   wireCanvasDismiss();
+  wireSearch();
 }
+
+function _escHtml(s) {
+  return String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+}
+
+// Bilingual search over name_en / name_hi (and spouse names) → dropdown → focus.
+function wireSearch() {
+  const input = document.getElementById('search-input');
+  const results = document.getElementById('search-results');
+  if (!input || !results) return;
+
+  function close() { results.hidden = true; results.innerHTML = ''; }
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { close(); return; }
+    const matches = (state.persons || []).filter((p) =>
+      (p.name_en || '').toLowerCase().includes(q) ||
+      (p.name_hi || '').toLowerCase().includes(q) ||
+      (p.spouse_en || '').toLowerCase().includes(q) ||
+      (p.spouse_hi || '').toLowerCase().includes(q)
+    ).slice(0, 8);
+
+    if (!matches.length) {
+      results.innerHTML = '<div class="search-empty">No matches</div>';
+    } else {
+      results.innerHTML = matches.map((p) =>
+        `<div class="search-item" data-id="${p.id}">` +
+        `<span>${_escHtml(p.name_en || '(unnamed)')}</span>` +
+        (p.name_hi ? `<span class="hi">${_escHtml(p.name_hi)}</span>` : '') +
+        '</div>'
+      ).join('');
+    }
+    results.hidden = false;
+  });
+
+  results.addEventListener('click', (e) => {
+    const item = e.target.closest('.search-item');
+    if (!item) return;
+    focusOnPerson(item.getAttribute('data-id'));
+    close();
+    input.blur();
+  });
+
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); input.blur(); } });
+  document.addEventListener('click', (e) => {
+    if (!results.hidden && !e.target.closest('#search-wrap')) close();
+  });
+}
+
+// Smoothly center the viewport on a person's node and pulse it.
+function focusOnPerson(id) {
+  const viewport = document.getElementById('tree-viewport');
+  const node = document.querySelector(`.node[data-id="${id}"]`);
+  if (!viewport || !node) return;
+  const rect = node.querySelector('rect');
+  if (!rect) return;
+  const s = window.__canvasScale || 1;
+  const nx = parseFloat(rect.getAttribute('x'));
+  const ny = parseFloat(rect.getAttribute('y'));
+  const nw = parseFloat(rect.getAttribute('width'));
+  const nh = parseFloat(rect.getAttribute('height'));
+  viewport.scrollTo({
+    left: nx * s - viewport.clientWidth / 2 + (nw * s) / 2,
+    top: ny * s - viewport.clientHeight / 2 + (nh * s) / 2,
+    behavior: 'smooth',
+  });
+  node.classList.add('search-hit');
+  setTimeout(() => node.classList.remove('search-hit'), 2500);
+}
+window.focusOnPerson = focusOnPerson;
 
 // Clicking empty canvas closes the sidebar. Node/affordance clicks call
 // stopPropagation, so they don't bubble here.

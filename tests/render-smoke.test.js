@@ -84,6 +84,15 @@ describe('renderTree (smoke)', () => {
     expect(svg.querySelectorAll('.gen-bands').length).toBe(1);
   });
 
+  test('edit icon per box; collapse toggle per parent', () => {
+    const svg = setupDomAndLoad();
+    window.renderTree(STATE);
+    // one edit icon per box: 7 people + 3 spouses (F, a, a1 are couples) = 10
+    expect(svg.querySelectorAll('.aff-edit').length).toBe(10);
+    // collapse toggles on parents: F and a have children = 2
+    expect(svg.querySelectorAll('.collapse-toggle').length).toBe(2);
+  });
+
   test('empty tree shows the hint, no node groups', () => {
     const svg = setupDomAndLoad();
     window.renderTree({ lang: 'en', tree: null, persons: [], relationships: [] });

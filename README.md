@@ -10,6 +10,11 @@ A traditional Indian genealogical tree builder. Create, edit, and export your fa
 - **Generation colour palette** — bloodline boxes are coloured **by generation** in muted Indian natural-dye tones (Kumkum red → turmeric → mehendi → indigo → terracotta) with thick coloured borders so the bloodline pops; married-in spouses are a uniform muted taupe. Gender is shown by a small **♂/♀ accent**. Sepia ink on a parchment canvas.
 - **Clean line routing** — children hang from a shared horizontal bus just below each parent; child lines descend from the centre of the marriage connector. Larger families pack into two rows with the second row brick-offset so its lines pass between (not through) the first row.
 - **Edit lock** — a lock toggle (ON by default) keeps the tree read-only for safe viewing; unlock to enable editing. Navigation, export, language and minimap stay available while locked.
+- **Search** — bilingual (English/Hindi) toolbar search; pick a result to smoothly centre and pulse-highlight that person.
+- **Minimap** — on by default (a wide tree needs it); draggable viewport box; click/drag to pan.
+- **Collapsible branches** — a −/+ toggle on every parent collapses or expands its descendants (the tree reflows via the RT layout).
+- **Chain highlight** — in locked/view mode, hovering a card lights up its lineage up to the root; in unlocked mode hover shows the edit/add affordances instead.
+- **Couples** — each box (person *and* spouse) has its own edit icon; the pair sits in a subtle group container.
 - **SVG tree renderer** — compact top-down grouped layout with **2-row child packing** (fits more per screen); **dynamic node widths + 2-line wrapping** (no truncation); soft generation banding; heavier patriarch border; **Tiro Devanagari Hindi** serif; decorative double border
 - **On-card actions** — hover a card for an **edit (✎)** icon and an **add-child (+)** button; right-click for the full menu (add / edit / delete)
 - **Pan / zoom / navigate** — scroll to pan, **Ctrl+scroll** (or toolbar buttons) to zoom, Fit to reset, and a toggleable **minimap** for large trees
@@ -203,6 +208,9 @@ All IDs are UUIDs. A single tree row owns all persons and relationships; cascadi
 | Zoom | **Ctrl + scroll**, or toolbar zoom buttons; Fit to reset |
 | Minimap | Toggle the map button in the toolbar |
 | See all controls | **?** help button in the toolbar |
+| Find a person | Type in the toolbar **search** (English or Hindi) → click a result |
+| Collapse / expand a branch | Click the **−/+** toggle at a parent's bottom edge |
+| Trace a lineage | Hover a card while **locked** — the chain to the root highlights |
 | Lock / unlock editing | Lock toggle in the toolbar (locked by default; unlock to edit) |
 | Close the form | Click any empty area of the canvas |
 | Record a death year | Untick **Living** in the form (checked by default, so death year stays hidden) |

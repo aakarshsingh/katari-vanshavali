@@ -221,3 +221,9 @@
   color: var(--ink-muted, #5a4a30);
   margin-bottom: 8px;
 }
+
+/* The death-year wrappers are .form-group (display:flex), which overrode the
+   [hidden] attribute — force them hidden so death year only shows when
+   "Living" is unchecked. */
+#death-field[hidden],
+#spouse-death-field[hidden] { display: none !important; }

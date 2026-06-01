@@ -66,8 +66,19 @@ function renderTree(state) {
     ? splitTree(persons, relationships, 'Bade Lal Singh')
     : { ancestorChain: [], focalId: null, descendantPersons: persons, descendantRelationships: relationships };
 
-  const { ancestorChain, focalId, descendantPersons, descendantRelationships } = split;
+  const { ancestorChain, focalId } = split;
+  let { descendantPersons, descendantRelationships } = split;
   const personMap = Object.fromEntries(persons.map(p => [p.id, p]));
+
+  // Which nodes have children (pre-collapse) → drives the collapse toggle.
+  const hasChildren = new Set(descendantRelationships.map(r => r.parent_id));
+
+  // Collapse: hide descendants of any collapsed node before layout.
+  if (collapsed.size) {
+    const pruned = pruneCollapsed(descendantPersons, descendantRelationships, collapsed);
+    descendantPersons = pruned.persons;
+    descendantRelationships = pruned.relationships;
+  }
 
   // Per-node widths (couple units are wider) drive the layout spacing.
   const widthOf = (typeof NodeMetrics !== 'undefined') ? NodeMetrics.widthMap(persons, lang) : null;
@@ -146,8 +157,37 @@ function renderTree(state) {
     }
   }
 
+  const parentOf = {};
+  for (const r of descendantRelationships) parentOf[r.child_id] = r.parent_id;
+
   renderEdges(svg, layoutMap, descendantRelationships, nodeH, stripHeight, anchors);
-  renderNodes(svg, layout, personMap, lang, nodeH, stripHeight, focalId, depthById);
+  renderNodes(svg, layout, personMap, lang, nodeH, stripHeight, focalId, depthById, hasChildren, parentOf);
+}
+
+// Client-side collapse state (in-memory) + toggle.
+const collapsed = new Set();
+function toggleCollapse(id) {
+  if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
+  if (window.__state && typeof renderTree === 'function') renderTree(window.__state);
+}
+window.toggleCollapse = toggleCollapse;
+
+// Remove all descendants (not the node itself) of any collapsed node.
+function pruneCollapsed(persons, relationships, collapsedSet) {
+  const childrenOf = {};
+  for (const r of relationships) (childrenOf[r.parent_id] = childrenOf[r.parent_id] || []).push(r.child_id);
+  const remove = new Set();
+  for (const cid of collapsedSet) {
+    const stack = [...(childrenOf[cid] || [])];
+    while (stack.length) {
+      const n = stack.pop();
+      if (!remove.has(n)) { remove.add(n); for (const c of (childrenOf[n] || [])) stack.push(c); }
+    }
+  }
+  return {
+    persons: persons.filter(p => !remove.has(p.id)),
+    relationships: relationships.filter(r => !remove.has(r.parent_id) && !remove.has(r.child_id)),
+  };
 }
 
 // BFS from the focal person over parent→child edges → { id: depth } (focal = 0).
@@ -374,45 +414,53 @@ function drawBox(group, boxX, y, h, box, gender, role, emphasis, depth) {
   }
 }
 
-// Hover affordances: edit (pencil) top-right of the unit, add-child (+) below it.
-// Class "affordance" so export can strip them. They stop propagation so they
-// don't trigger the card's click-to-edit.
-function addAffordances(g, person, unitX, unitW, y, nodeH) {
-  const aff = svgEl('g', { class: 'affordance' });
-
-  // Edit (pencil)
-  const ex = unitX + unitW - 11, ey = y + 11;
-  const edit = svgEl('g', { class: 'aff-btn aff-edit' });
-  edit.appendChild(svgEl('circle', { cx: ex, cy: ey, r: 9, fill: '#fff8f0', stroke: INK, 'stroke-width': 1 }));
-  const eg = svgEl('text', { x: ex, y: ey, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 10, fill: INK });
-  eg.textContent = '✎';
-  edit.appendChild(eg);
-  edit.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (typeof openEdit === 'function') openEdit(person.id);
-  });
-  aff.appendChild(edit);
-
-  // Add child (+)
-  const ax = unitX + unitW / 2, ay = y + nodeH + 12;
-  const add = svgEl('g', { class: 'aff-btn aff-add' });
-  add.appendChild(svgEl('circle', { cx: ax, cy: ay, r: 10, fill: '#e8dcc0', stroke: INK, 'stroke-width': 1 }));
-  const ag = svgEl('text', { x: ax, y: ay, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15, 'font-weight': 'bold', fill: INK });
-  ag.textContent = '+';
-  add.appendChild(ag);
-  add.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (typeof openNew === 'function') openNew(person.id);
-  });
-  aff.appendChild(add);
-
-  g.appendChild(aff);
+// Edit (pencil) icon at the top-right of a box. One per box so a couple has an
+// edit handle on BOTH the person and the spouse (both edit the same record).
+// Class "affordance" → shown on hover (unlocked), stripped on export.
+function addEditIcon(g, personId, cx, cy) {
+  const ed = svgEl('g', { class: 'affordance aff-btn aff-edit' });
+  ed.appendChild(svgEl('circle', { cx, cy, r: 9, fill: '#fff8f0', stroke: INK, 'stroke-width': 1 }));
+  const t = svgEl('text', { x: cx, y: cy, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 10, fill: INK });
+  t.textContent = '✎';
+  ed.appendChild(t);
+  ed.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openEdit === 'function') openEdit(personId); });
+  g.appendChild(ed);
 }
 
-function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId, depthById) {
+// Add-child (+) icon. One per unit (bottom-right).
+function addAddChildIcon(g, personId, cx, cy) {
+  const ad = svgEl('g', { class: 'affordance aff-btn aff-add' });
+  ad.appendChild(svgEl('circle', { cx, cy, r: 10, fill: '#e8dcc0', stroke: INK, 'stroke-width': 1 }));
+  const t = svgEl('text', { x: cx, y: cy, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15, 'font-weight': 'bold', fill: INK });
+  t.textContent = '+';
+  ad.appendChild(t);
+  ad.addEventListener('click', (e) => { e.stopPropagation(); if (typeof openNew === 'function') openNew(personId); });
+  g.appendChild(ad);
+}
+
+// Small −/+ toggle at a parent's bottom edge to collapse / expand its branch.
+function addCollapseToggle(g, id, cx, cy, isCollapsed) {
+  const t = svgEl('g', { class: 'collapse-toggle' });
+  t.appendChild(svgEl('circle', { cx, cy, r: 8, fill: '#fff8f0', stroke: INK, 'stroke-width': 1.25 }));
+  const sign = svgEl('text', {
+    x: cx, y: cy, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-size': 14, 'font-weight': 'bold', fill: INK,
+  });
+  sign.textContent = isCollapsed ? '+' : '−';
+  t.appendChild(sign);
+  t.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (typeof toggleCollapse === 'function') toggleCollapse(id);
+  });
+  g.appendChild(t);
+}
+
+function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId, depthById, hasChildren, parentOf) {
   const nodeGroup = svgEl('g', { class: 'nodes' });
   const metrics = (typeof NodeMetrics !== 'undefined') ? NodeMetrics : null;
   depthById = depthById || {};
+  hasChildren = hasChildren || new Set();
+  parentOf = parentOf || {};
 
   for (const pos of layout) {
     const person = personMap[pos.id];
@@ -444,9 +492,11 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId, dept
       }
 
       drawBox(g, x + spec.person.offsetX, y, nodeH, spec.person.box, spec.person.gender, 'person', isPatriarch, depth);
+      addEditIcon(g, person.id, x + spec.person.box.width - 11, y + 11);
 
       if (spec.isCouple) {
         drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse', false, depth);
+        addEditIcon(g, person.id, x + spec.spouse.offsetX + spec.spouse.box.width - 11, y + 11);
         // Marriage connector (double line) between the two boxes
         const x1 = x + spec.person.box.width;
         const x2 = x + spec.spouse.offsetX;
@@ -459,9 +509,30 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId, dept
         x, y, width: pos.width, height: nodeH,
         fill: FILL_BLOODLINE, stroke: INK, 'stroke-width': 1, rx: 3,
       }));
+      addEditIcon(g, person.id, x + pos.width - 11, y + 11);
     }
 
-    addAffordances(g, person, x, pos.width, y, nodeH);
+    addAddChildIcon(g, person.id, x + pos.width - 11, y + nodeH + 12);
+    if (hasChildren.has(pos.id)) {
+      addCollapseToggle(g, pos.id, x + pos.width / 2, y + nodeH, collapsed.has(pos.id));
+    }
+
+    // Chain highlight on hover (locked/view mode): light up the lineage up to
+    // the root. In unlocked mode we keep hover focused on the edit affordances.
+    g.addEventListener('mouseenter', () => {
+      if (!window.__locked) return;
+      let cur = pos.id;
+      const seen = {};
+      while (cur && !seen[cur]) {
+        seen[cur] = true;
+        const el = nodeGroup.querySelector(`.node[data-id="${cur}"]`);
+        if (el) el.classList.add('chain');
+        cur = parentOf[cur];
+      }
+    });
+    g.addEventListener('mouseleave', () => {
+      nodeGroup.querySelectorAll('.node.chain').forEach((el) => el.classList.remove('chain'));
+    });
 
     g.addEventListener('click', (e) => {
       if (window.__locked) return;
