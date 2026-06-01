@@ -82,6 +82,10 @@ function renderTree(state) {
   const nodeH = layout[0].height; // uniform across the tree
   const layoutMap = Object.fromEntries(layout.map(n => [n.id, n]));
 
+  // True genealogical depth from the focal person (parent_depth + 1) — drives
+  // both the generation colour and the generation bands (NOT the rendered row).
+  const depthById = computeDepths(focalId, descendantRelationships);
+
   const maxX = Math.max(...layout.map(n => n.x + n.width));
   const maxY = Math.max(...layout.map(n => n.y + nodeH));
 
@@ -112,7 +116,7 @@ function renderTree(state) {
 
   renderBorder(svg, svgW, svgH);
   renderTitleHeader(svg, svgW, headerTitle);
-  renderBands(svg, layout, nodeH, stripHeight, svgW);
+  renderBands(svg, layout, nodeH, stripHeight, svgW, depthById);
 
   if (hasStrip) {
     renderAncestorStrip(
@@ -144,11 +148,6 @@ function renderTree(state) {
     }
   }
 
-  // True genealogical depth from the focal person (parent_depth + 1) — drives
-  // the generation colour. NOT the rendered row, so a node pushed down by the
-  // 2-row packing keeps its real generation colour.
-  const depthById = computeDepths(focalId, descendantRelationships);
-
   renderEdges(svg, layoutMap, descendantRelationships, nodeH, stripHeight, anchors);
   renderNodes(svg, layout, personMap, lang, nodeH, stripHeight, focalId, depthById);
 }
@@ -172,15 +171,23 @@ function computeDepths(focalId, relationships) {
   return depth;
 }
 
-// Subtle alternating banding per generation row → easier to read generations.
-function renderBands(svg, layout, nodeH, yOffset, svgW) {
-  const rowsY = [...new Set(layout.map(n => n.y))].sort((a, b) => a - b);
+// Alternating band per GENERATION (true depth), spanning all of that
+// generation's rows — so a 2-row generation shares one band.
+function renderBands(svg, layout, nodeH, yOffset, svgW, depthById) {
+  const byGen = {};
+  for (const n of layout) {
+    const d = (depthById && depthById[n.id] != null) ? depthById[n.id] : 0;
+    if (!byGen[d]) byGen[d] = { min: n.y, max: n.y };
+    if (n.y < byGen[d].min) byGen[d].min = n.y;
+    if (n.y > byGen[d].max) byGen[d].max = n.y;
+  }
   const g = svgEl('g', { class: 'gen-bands' });
-  rowsY.forEach((ry, i) => {
-    if (i % 2 === 1) {
+  Object.keys(byGen).map(Number).sort((a, b) => a - b).forEach((d) => {
+    if (d % 2 === 1) {
+      const b = byGen[d];
       g.appendChild(svgEl('rect', {
-        x: 16, y: PADDING + yOffset + ry - 6,
-        width: svgW - 32, height: nodeH + 12,
+        x: 16, y: PADDING + yOffset + b.min - 6,
+        width: svgW - 32, height: (b.max - b.min) + nodeH + 12,
         fill: BAND_FILL, 'fill-opacity': BAND_OPACITY, stroke: 'none', rx: 6,
       }));
     }
@@ -404,7 +411,7 @@ function addAffordances(g, person, unitX, unitW, y, nodeH) {
   g.appendChild(aff);
 }
 
-function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
+function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId, depthById) {
   const nodeGroup = svgEl('g', { class: 'nodes' });
   const metrics = (typeof NodeMetrics !== 'undefined') ? NodeMetrics : null;
   depthById = depthById || {};
@@ -427,10 +434,21 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
 
     if (metrics) {
       const spec = metrics.cardSpec(person, lang);
-      drawBox(g, x + spec.person.offsetX, y, nodeH, spec.person.box, spec.person.gender, 'person', isPatriarch, depth, maxGen);
+
+      // Couple group container: a subtle pill behind both boxes so the pair
+      // reads as one family unit (drawn first, sits behind the boxes).
+      if (spec.isCouple) {
+        g.appendChild(svgEl('rect', {
+          class: 'couple-bg',
+          x: x - 5, y: y - 5, width: spec.width + 10, height: nodeH + 10, rx: 9,
+          fill: '#7a6a48', 'fill-opacity': 0.06, stroke: '#7a6a48', 'stroke-opacity': 0.18,
+        }));
+      }
+
+      drawBox(g, x + spec.person.offsetX, y, nodeH, spec.person.box, spec.person.gender, 'person', isPatriarch, depth);
 
       if (spec.isCouple) {
-        drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse', false, depth, maxGen);
+        drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse', false, depth);
         // Marriage connector (double line) between the two boxes
         const x1 = x + spec.person.box.width;
         const x2 = x + spec.spouse.offsetX;
