@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
 
-const PDF_PATH = path.join(__dirname, '../docs/vanshavali.pdf');
+const PDF_PATH = path.join(__dirname, '../.state/docs/vanshavali.pdf');
 const OUTPUT_PATH = path.join(__dirname, '../docs/seed.json');
 
 const PROMPT = `Extract all people and parent-child relationships from this family tree document.
@@ -44,7 +44,7 @@ async function run() {
   console.log('Sending PDF to Claude Vision...');
   const response = await client.messages.create({
     model: 'claude-opus-4-8',
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [
       {
         role: 'user',
@@ -67,6 +67,7 @@ async function run() {
   });
 
   const raw = response.content[0].text;
+  console.log(`Raw response length: ${raw.length} chars, stop_reason: ${response.stop_reason}`);
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('No JSON object found in Claude response');
 
@@ -75,6 +76,7 @@ async function run() {
     throw new Error('Claude returned no persons in seed data');
   }
 
+  fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(data, null, 2));
   console.log(`Seed data written to ${OUTPUT_PATH}`);
   console.log(`Extracted: ${data.persons.length} persons, ${data.relationships.length} relationships`);
