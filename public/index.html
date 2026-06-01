@@ -98,6 +98,13 @@
         </div>
 
         <div class="form-group">
+          <label class="check-label">
+            <input type="checkbox" id="f-married" name="married" /> Married
+          </label>
+        </div>
+
+        <div id="spouse-fields" hidden>
+        <div class="form-group">
           <label for="f-spouse-en">Spouse (English)</label>
           <input type="text" id="f-spouse-en" name="spouse_en" autocomplete="off" />
           <div id="chips-spouse" class="chip-row" aria-live="polite"></div>
@@ -133,6 +140,7 @@
             </label>
           </div>
         </div>
+        </div><!-- /#spouse-fields -->
 
         <div class="form-group">
           <label>Gender</label>

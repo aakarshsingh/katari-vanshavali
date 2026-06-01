@@ -1,6 +1,25 @@
 let sidebarMode = 'new';
 let sidebarParentId = null;
 let sidebarPersonId = null;
+let sidebarOrigParentId = null; // current parent when editing (for re-parent detection)
+
+function findParentId(personId) {
+  const rels = (window.__state && window.__state.relationships) || [];
+  const rel = rels.find(r => r.child_id === personId);
+  return rel ? rel.parent_id : '';
+}
+
+// All descendants of personId — excluded as re-parent targets to avoid cycles.
+function descendantsOf(personId) {
+  const rels = (window.__state && window.__state.relationships) || [];
+  const childrenOf = {};
+  for (const r of rels) (childrenOf[r.parent_id] = childrenOf[r.parent_id] || []).push(r.child_id);
+  const set = new Set();
+  (function walk(id) {
+    for (const c of (childrenOf[id] || [])) { if (!set.has(c)) { set.add(c); walk(c); } }
+  })(personId);
+  return set;
+}
 
 function getSidebarEls() {
   return {
@@ -16,6 +35,8 @@ function getSidebarEls() {
     spouseBirth: document.getElementById('f-spouse-birth'),
     spouseDeath: document.getElementById('f-spouse-death'),
     notes: document.getElementById('f-notes'),
+    married: document.getElementById('f-married'),
+    spouseFields: document.getElementById('spouse-fields'),
     parent: document.getElementById('f-parent'),
     parentGroup: document.getElementById('parent-group'),
     btnSave: document.getElementById('btn-save'),
@@ -37,19 +58,27 @@ function clearError(el) {
   el.hidden = true;
 }
 
+// Show/hide the spouse fields based on the Married checkbox.
+function setMarried(els, on) {
+  if (els.married) els.married.checked = !!on;
+  if (els.spouseFields) els.spouseFields.hidden = !on;
+}
+
 function collectForm(els) {
   const genderEl = els.form.querySelector('[name="gender"]:checked');
   const spouseGenderEl = els.form.querySelector('[name="spouse_gender"]:checked');
+  const married = !!(els.married && els.married.checked);
+  // When not married, spouse data is cleared so the card renders as a single box.
   return {
     name_en: els.nameEn.value.trim(),
     name_hi: els.nameHi.value.trim() || null,
     birth_year: els.birth.value ? parseInt(els.birth.value, 10) : null,
     death_year: els.death.value ? parseInt(els.death.value, 10) : null,
-    spouse_en: els.spouseEn.value.trim() || null,
-    spouse_hi: els.spouseHi.value.trim() || null,
-    spouse_birth_year: els.spouseBirth.value ? parseInt(els.spouseBirth.value, 10) : null,
-    spouse_death_year: els.spouseDeath.value ? parseInt(els.spouseDeath.value, 10) : null,
-    spouse_gender: spouseGenderEl ? spouseGenderEl.value : null,
+    spouse_en: married ? (els.spouseEn.value.trim() || null) : null,
+    spouse_hi: married ? (els.spouseHi.value.trim() || null) : null,
+    spouse_birth_year: married && els.spouseBirth.value ? parseInt(els.spouseBirth.value, 10) : null,
+    spouse_death_year: married && els.spouseDeath.value ? parseInt(els.spouseDeath.value, 10) : null,
+    spouse_gender: married && spouseGenderEl ? spouseGenderEl.value : null,
     gender: genderEl ? genderEl.value : 'M',
     notes: els.notes.value.trim() || null,
   };
@@ -71,11 +100,14 @@ function populateForm(els, person) {
     ? els.form.querySelector(`[name="spouse_gender"][value="${person.spouse_gender}"]`)
     : null;
   if (spouseGenderRadio) spouseGenderRadio.checked = true;
+  // A person is "married" if they have a spouse name recorded.
+  setMarried(els, !!(person.spouse_en || person.spouse_hi));
 }
 
 function resetForm(els) {
   els.form.reset();
   clearError(els.error);
+  setMarried(els, false);
   const btnAddChild = document.getElementById('btn-add-child');
   if (btnAddChild) btnAddChild.hidden = true;
 }
@@ -94,15 +126,19 @@ function closeSidebar() {
   sidebarMode = 'new';
   sidebarParentId = null;
   sidebarPersonId = null;
+  sidebarOrigParentId = null;
 }
 
 // Populate the Parent <select> from current state; preselect selectedId.
-function populateParentOptions(els, selectedId) {
+// excludeIds: a Set of person ids to omit (self + descendants when editing).
+function populateParentOptions(els, selectedId, excludeIds) {
   if (!els.parent) return;
   const state = window.__state;
   const persons = (state && state.persons) || [];
+  const skip = excludeIds || new Set();
   const opts = ['<option value="">— none (root) —</option>'];
   for (const p of persons) {
+    if (skip.has(p.id)) continue;
     const sel = p.id === selectedId ? ' selected' : '';
     const label = (p.name_en || '(unnamed)').replace(/[<>&]/g, (c) =>
       ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
@@ -140,7 +176,12 @@ function openEdit(personId) {
   sidebarPersonId = personId;
 
   resetForm(els);
-  if (els.parentGroup) els.parentGroup.hidden = true;
+  // Show the actual current parent and allow re-parenting (excluding self + descendants).
+  sidebarOrigParentId = findParentId(personId);
+  const exclude = descendantsOf(personId);
+  exclude.add(personId);
+  populateParentOptions(els, sidebarOrigParentId, exclude);
+  if (els.parentGroup) els.parentGroup.hidden = false;
   els.title.textContent = 'Edit Person';
   els.btnDelete.hidden = false;
   const btnAddChild = document.getElementById('btn-add-child');
@@ -182,8 +223,24 @@ async function handleSubmit(e) {
       setState({ persons: newPersons, relationships: newRelationships });
     } else {
       const person = await api.updatePerson(sidebarPersonId, data);
+      let newRelationships = window.__state.relationships;
+
+      // Re-parent if the parent selection changed.
+      const selectedParent = (els.parent && els.parent.value) || null;
+      if (selectedParent !== (sidebarOrigParentId || null)) {
+        const oldRel = newRelationships.find(r => r.child_id === sidebarPersonId);
+        if (oldRel) {
+          await api.deleteRelationship(oldRel.id);
+          newRelationships = newRelationships.filter(r => r.id !== oldRel.id);
+        }
+        if (selectedParent) {
+          const rel = await api.createRelationship(selectedParent, sidebarPersonId);
+          newRelationships = [...newRelationships, rel];
+        }
+      }
+
       const newPersons = window.__state.persons.map(p => p.id === person.id ? person : p);
-      setState({ persons: newPersons });
+      setState({ persons: newPersons, relationships: newRelationships });
     }
     closeSidebar();
   } catch (err) {
@@ -221,6 +278,7 @@ function initSidebar() {
   els.btnClose && els.btnClose.addEventListener('click', closeSidebar);
   els.form && els.form.addEventListener('submit', handleSubmit);
   els.btnDelete && els.btnDelete.addEventListener('click', handleDelete);
+  els.married && els.married.addEventListener('change', () => setMarried(els, els.married.checked));
 
   const btnAddChild = document.getElementById('btn-add-child');
   btnAddChild && btnAddChild.addEventListener('click', () => {

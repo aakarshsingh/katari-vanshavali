@@ -98,3 +98,29 @@ describe('computeGroupedLayout (variable width + couples)', () => {
     expect(heights.size).toBe(1);
   });
 });
+
+describe('2-row child packing (T6)', () => {
+  function family(childCount) {
+    const persons = [{ id: 'F' }, { id: 'P' }];
+    const rels = [{ parent_id: 'F', child_id: 'P' }];
+    for (let i = 0; i < childCount; i++) {
+      persons.push({ id: 'k' + i });
+      rels.push({ parent_id: 'P', child_id: 'k' + i });
+    }
+    return { persons, rels };
+  }
+
+  test('a family with >3 children packs into exactly two rows', () => {
+    const { persons, rels } = family(6);
+    const layout = computeGroupedLayout(persons, rels, 'F');
+    const kidYs = new Set(layout.filter(n => n.id.startsWith('k')).map(n => n.y));
+    expect(kidYs.size).toBe(2);
+  });
+
+  test('a small family (<=3) stays on one row', () => {
+    const { persons, rels } = family(3);
+    const layout = computeGroupedLayout(persons, rels, 'F');
+    const kidYs = new Set(layout.filter(n => n.id.startsWith('k')).map(n => n.y));
+    expect(kidYs.size).toBe(1);
+  });
+});

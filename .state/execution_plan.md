@@ -1758,3 +1758,45 @@ _(Filled after verification)_
 **Completion Record:**
 _(Filled after verification)_
 
+
+---
+
+# Pivot Round 3 — Feedback 2026-06-02
+
+**Trigger:** Live feedback on deployed R2 (screenshots `00_14_*`, `3.png`, exports `4`,`5`,`6.pdf`,`7.pdf`).
+**Locked decisions:** colours = role fill + gender accent (bloodline cream, married-in spouse
+blue-grey, ♂/♀ accent, dark text); Devanagari font = **Tiro Devanagari Hindi** (self-hosted);
+child packing = **2-row grid** per family.
+
+**Diagnosed export bugs (from PDFs):**
+- Tree is **clipped** in export — `canvg` `scaleWidth/scaleHeight` conflict with SVG width/height+viewBox.
+- PDF **title is garbage** (`5 6 > 5 2 @`) — jsPDF Helvetica can't render Devanagari `title_en`
+  (which also confirms `title_en` holds Devanagari → "English title broken").
+
+**Order:** T1–T2 visual base → T3–T4 form → T5–T6 layout → T7 export → T8–T10 polish → T11 docs/tests.
+
+| ID | Phase | Target files |
+|----|-------|--------------|
+| T1 | Colour system: role fill (cream bloodline / blue-grey spouse) + ♂/♀ gender accent, dark text, drop solid red | `tree-render.js`, `node-metrics.js`, `main.css` |
+| T2 | Self-host **Tiro Devanagari Hindi**; use regular weight for names (fixes "lost in bold") | `public/fonts/`, `main.css`, `tree-render.js`, `node-metrics.js`, `export.js` |
+| T3 | **Married checkbox** reveals/hides spouse fields; couple still derived from spouse name | `index.html`, `sidebar.js` |
+| T4 | Edit-mode **parent dropdown shows current parent**; allow **re-parenting** (swap relationship) | `sidebar.js`, `index.html` |
+| T5 | Child lines originate from **centre of the = connector** (couple), box centre (single) | `tree-render.js` |
+| T6 | **2-row grid** child packing (cols = ceil(n/2)); small families stay one row | `tree-layout.js` |
+| T7 | **Export fix**: remove canvg scale opts + `ctx.scale(dpr)` (no clipping); **bake title into image** (canvg renders Devanagari); PDF uses JPEG + ASCII footer only | `export.js`, `index.html` |
+| T8 | **Softer generation banding** (low-alpha rgba watermark, not hard stripes) | `tree-render.js`, `main.css` |
+| T9 | **Minimap contrast** — stronger border + drop shadow | `main.css` |
+| T10 | **Title robustness** — language-appropriate placeholder; editing in EN writes `title_en`; document how to set the English title | `main.js`, `index.html` |
+| T11 | README + layout tests (2-row packing, connector origin) | `README.md`, `tests/tree-layout.test.js` |
+| T12 | **Density pass (my judgment, "fit more / less scrolling")**: compact leaf cards (shorter when single-line/no spouse), smaller min-width + tighter gaps, fit-to-screen on load, marriage gap trimmed | `node-metrics.js`, `tree-layout.js`, `main.js` |
+
+**Notes / decisions baked in:**
+- "Spouse and children different colours" → handled by **role fill** (children are bloodline = cream;
+  spouses = blue-grey). Gender remains visible via the ♂/♀ accent.
+- Married checkbox is **form UX only**; the renderer still treats a node as a couple iff a spouse
+  name exists (keeps data model simple, no new column).
+- Re-parenting validates against selecting self (and direct descendants) to avoid cycles.
+- Node heights are already uniform (clean bands); T8 only softens the band fill.
+
+
+**Status:** Round 3 (T1–T12) implemented 2026-06-02; `npm test` 22/22. Committed locally, pending push/deploy. The migration from R0 still self-applies on deploy.

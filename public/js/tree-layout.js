@@ -1,7 +1,7 @@
 const NODE_WIDTH = 170;   // fallback width when no per-node measurement is provided
 const NODE_HEIGHT = 90;   // fallback height (Node/test env without NodeMetrics)
-const H_GAP = 16;
-const V_GAP = 38;   // tightened (R3) — denser generations, fits more per page
+const H_GAP = 14;
+const V_GAP = 30;   // tightened (T12 density) — fits more per page, less scrolling
 
 // Uniform row height across the tree (clean generations). Uses measured value
 // in the browser; falls back to the constant in Node tests.
@@ -192,10 +192,18 @@ function splitTree(persons, relationships, focalNameEn) {
 // ── Grouped / compact layout ────────────────────────────────────────────────
 // Used instead of Reingold-Tilford when a focal person is identified.
 // Each top-level branch (direct child of focal) becomes a self-contained group.
-// Within each group, children are wrapped into rows of MAX_COLS and centered.
+// Within each group, children pack into a 2-row grid (see colsFor) and centre.
 
-const MAX_COLS   = 4;   // max siblings per row within a group (R3: wrap wider, shorter)
-const GROUP_GAP  = 36;  // horizontal gap between top-level groups (R3: tightened)
+// T6: pack a family's children into a 2-row grid (cols = ceil(n/2)) once a
+// family has more than ROW2_THRESHOLD children — fits more horizontally.
+const ROW2_THRESHOLD = 3;
+const GROUP_GAP  = 30;  // horizontal gap between top-level groups (T12: tightened)
+
+// Number of columns to use for a set of n children.
+function colsFor(n) {
+  if (n <= ROW2_THRESHOLD) return n;     // small families stay on one row
+  return Math.ceil(n / 2);               // otherwise fill two rows
+}
 
 // Recursively lays out a subtree rooted at nodeId.
 // getW: id -> unit width (couple or single). Returns { positions:[{id,x,y}], width, height }.
@@ -210,10 +218,11 @@ function layoutCompact(nodeId, childrenOf, depth, getW) {
 
   const childLayouts = children.map(c => layoutCompact(c, childrenOf, depth + 1, getW));
 
-  // Chunk into rows of MAX_COLS
+  // Chunk into a grid (2 rows for larger families — T6)
+  const cols = colsFor(childLayouts.length);
   const rows = [];
-  for (let i = 0; i < childLayouts.length; i += MAX_COLS) {
-    rows.push(childLayouts.slice(i, i + MAX_COLS));
+  for (let i = 0; i < childLayouts.length; i += cols) {
+    rows.push(childLayouts.slice(i, i + cols));
   }
 
   // Block width = widest row (and at least the node's own width)

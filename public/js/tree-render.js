@@ -5,15 +5,20 @@ const STRIP_BOX_H = 48;
 const STRIP_H_GAP = 20;
 const STRIP_V_PAD = 20;
 const INK = '#1a1008';
-const FILL_MALE = '#fff8f0';
-const FILL_FEMALE = '#8b1a1a';
+const FONT = "'Tiro Devanagari Hindi', Georgia, serif";
+// Role-based fill (T1): bloodline = cream, married-in spouse = soft blue-grey.
+const FILL_BLOODLINE = '#fff8f0';
+const FILL_SPOUSE = '#e6ecf0';
 const FILL_ANCESTOR = '#f5ede0';
 const TEXT_MUTED = '#6b5a44';
-const TEXT_SPOUSE = '#cc2200';
-const BAND_FILL = '#efe4cc';      // faint generation banding
-// Max chars before truncating with ellipsis (prevents text overflowing node box)
+// Gender accent glyph colours (dark text stays on the box; gender shown by accent).
+const ACCENT_M = '#3a5f7d';   // slate blue
+const ACCENT_F = '#9c4a6a';   // muted plum/rose
+// Soft generation banding (T8): low-alpha watermark, not a hard stripe.
+const BAND_FILL = '#b8986a';
+const BAND_OPACITY = 0.10;
+// Max chars before truncating with ellipsis (ancestor strip only)
 const NAME_MAX = 22;
-const SPOUSE_MAX = 20;
 
 function svgEl(tag, attrs) {
   const el = document.createElementNS(SVG_NS, tag);
@@ -94,7 +99,29 @@ function renderTree(state) {
     );
   }
 
-  renderEdges(svg, layoutMap, descendantRelationships, nodeH, stripHeight);
+  // Edge anchors: descend from the marriage-connector centre (couples) and
+  // attach to each child's own (bloodline) box centre.
+  const anchors = {};
+  const metricsAvail = (typeof NodeMetrics !== 'undefined');
+  for (const pos of layout) {
+    const person = personMap[pos.id];
+    const baseX = PADDING + pos.x;
+    if (metricsAvail && person) {
+      const spec = NodeMetrics.cardSpec(person, lang);
+      const personCenter = baseX + spec.person.box.width / 2;
+      anchors[pos.id] = {
+        attachX: personCenter,
+        descendX: spec.isCouple
+          ? baseX + spec.person.box.width + NodeMetrics.M.COUPLE_GAP / 2
+          : personCenter,
+      };
+    } else {
+      const c = baseX + pos.width / 2;
+      anchors[pos.id] = { attachX: c, descendX: c };
+    }
+  }
+
+  renderEdges(svg, layoutMap, descendantRelationships, nodeH, stripHeight, anchors);
   renderNodes(svg, layout, personMap, lang, nodeH, stripHeight, focalId);
 }
 
@@ -107,7 +134,7 @@ function renderBands(svg, layout, nodeH, yOffset, svgW) {
       g.appendChild(svgEl('rect', {
         x: 16, y: PADDING + yOffset + ry - 6,
         width: svgW - 32, height: nodeH + 12,
-        fill: BAND_FILL, stroke: 'none',
+        fill: BAND_FILL, 'fill-opacity': BAND_OPACITY, stroke: 'none', rx: 6,
       }));
     }
   });
@@ -146,7 +173,7 @@ function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY
       'font-size': 11, fill: INK,
     });
     nameEl.textContent = name;
-    nameEl.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
+    nameEl.setAttribute('font-family', FONT);
     group.appendChild(nameEl);
 
     // Horizontal connector to next ancestor box
@@ -178,16 +205,20 @@ function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY
   svg.appendChild(group);
 }
 
-function renderEdges(svg, layoutMap, relationships, nodeH, yOffset) {
+function renderEdges(svg, layoutMap, relationships, nodeH, yOffset, anchors) {
   const edgeGroup = svgEl('g', { class: 'edges' });
   for (const rel of relationships) {
     const parent = layoutMap[rel.parent_id];
     const child = layoutMap[rel.child_id];
     if (!parent || !child) continue;
 
-    const px = PADDING + parent.x + parent.width / 2;
+    // Descend from the centre of the parents' marriage connector (T5);
+    // attach to the child's own (bloodline) box centre.
+    const pa = anchors[rel.parent_id];
+    const ca = anchors[rel.child_id];
+    const px = pa ? pa.descendX : PADDING + parent.x + parent.width / 2;
     const py = PADDING + yOffset + parent.y + nodeH;
-    const cx = PADDING + child.x + child.width / 2;
+    const cx = ca ? ca.attachX : PADDING + child.x + child.width / 2;
     const cy = PADDING + yOffset + child.y;
     const midY = (py + cy) / 2;
 
@@ -199,18 +230,30 @@ function renderEdges(svg, layoutMap, relationships, nodeH, yOffset) {
   svg.appendChild(edgeGroup);
 }
 
-// Draws one labeled box (person or spouse): rect + wrapped name lines + birth/death.
+// Draws one labeled box. Fill by ROLE (bloodline cream / married-in spouse
+// blue-grey); gender shown by a small ♂/♀ accent; text is always dark for
+// readability. role: 'person' (bloodline) | 'spouse' (married-in).
 function drawBox(group, boxX, y, h, box, gender, role, emphasis) {
   const M = NodeMetrics.M;
-  const isFemale = gender === 'F';
-  const fill = isFemale ? FILL_FEMALE : FILL_MALE;
-  const textColor = isFemale ? '#fdf6e3' : INK;
-  const metaColor = isFemale ? '#e8cfae' : TEXT_MUTED;
+  const fill = role === 'spouse' ? FILL_SPOUSE : FILL_BLOODLINE;
 
   group.appendChild(svgEl('rect', {
     x: boxX, y, width: box.width, height: h,
     fill, stroke: INK, 'stroke-width': emphasis ? 2.5 : 1, rx: 3,
   }));
+
+  // Gender accent glyph, top-left corner
+  const accent = gender === 'M' ? ACCENT_M : (gender === 'F' ? ACCENT_F : null);
+  if (accent) {
+    const ga = svgEl('text', {
+      class: 'gender-accent',
+      x: boxX + 8, y: y + 11,
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'font-size': 11, fill: accent,
+    });
+    ga.textContent = gender === 'M' ? '♂' : '♀';
+    group.appendChild(ga);
+  }
 
   const cx = boxX + box.width / 2;
   const meta = box.metaLine;
@@ -223,10 +266,10 @@ function drawBox(group, boxX, y, h, box, gender, role, emphasis) {
       class: cls,
       x: cx, y: top + i * M.LINE_NAME + M.LINE_NAME / 2,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': 14, 'font-weight': 'bold', fill: textColor,
+      'font-size': 13, fill: INK,
     });
     t.textContent = line;
-    t.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
+    t.setAttribute('font-family', FONT);
     group.appendChild(t);
   });
 
@@ -235,10 +278,10 @@ function drawBox(group, boxX, y, h, box, gender, role, emphasis) {
       class: 'years',
       x: cx, y: top + box.nameLines.length * M.LINE_NAME + (M.LINE_META + 2) / 2,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': 10, 'font-style': 'italic', fill: metaColor,
+      'font-size': 10, 'font-style': 'italic', fill: TEXT_MUTED,
     });
     m.textContent = meta;
-    m.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
+    m.setAttribute('font-family', FONT);
     group.appendChild(m);
   }
 }
@@ -313,7 +356,7 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
     } else {
       g.appendChild(svgEl('rect', {
         x, y, width: pos.width, height: nodeH,
-        fill: FILL_MALE, stroke: INK, 'stroke-width': 1, rx: 3,
+        fill: FILL_BLOODLINE, stroke: INK, 'stroke-width': 1, rx: 3,
       }));
     }
 

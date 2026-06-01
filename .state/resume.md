@@ -3,60 +3,64 @@
 ## Current State
 
 - **Live URL:** https://katari-vanshavali-production.up.railway.app/
-- **Branch:** `main` (Pivot Round 2 implemented locally — NOT yet committed/deployed)
-- **All phases 0–18 + Pivot R0–R13 complete.** `npm test` → 20/20 pass.
+- **Branch:** `main` — R2 (`3dc88a0`) pushed/deployed; **Round 3 committed locally, pending push**.
+- **All phases 0–18 + Pivot R0–R13 + Round 3 T1–T12 complete.** `npm test` → 22/22.
 
-## Pivot Round 2 — What Was Built This Session
+## Round 3 — What Was Built (feedback on deployed R2)
 
-Driven by UI feedback. See `.state/execution_plan.md` → "Pivot Round 2" for full per-phase detail.
+Full plan in `.state/execution_plan.md` → "Pivot Round 3". Locked decisions: role-fill colours,
+Tiro Devanagari Hindi font, 2-row child packing.
 
-1. **R0 Schema/API** — `person` gains `spouse_birth_year`, `spouse_death_year`, `spouse_gender`
-   (idempotent `ADD COLUMN IF NOT EXISTS` in `migrate.js`; routes + validate updated; sidebar fields added).
-2. **R1 Dynamic sizing** — new `public/js/node-metrics.js`: canvas text measurement (Node fallback),
-   2-line wrapping, per-node widths, uniform row height. Layout (`tree-layout.js`) now threads a
-   `widthOf` map; `tree-render.js` draws per measured width. No more truncation.
-3. **R2 Couple cards** — a person renders as a paired couple box (person + spouse + marriage connector)
-   **iff** spouse name is filled. Birth/death shown under each name. Spouse box coloured by
-   `spouse_gender` (fallback = opposite of person). Dropped the "w./h." prefix entirely.
-4. **R3 Compact** — tighter `V_GAP`/`GROUP_GAP`, `MAX_COLS=4`.
-5. **R4 Ancestor connector** — orthogonal dotted path (was diagonal).
-6. **R5 Generation differentiation** — faint alternating banding + thicker patriarch border.
-7. **R6 Title i18n** — header title follows EN/HI; edits write the active-language field.
-8. **R7 Card affordances** — hover reveals ✎ (edit) + "+" (add child); class `affordance`, stripped on export.
-9. **R8 Parent dropdown** — Add form has a Parent `<select>`; non-empty tree requires a parent.
-10. **R9 Export rewrite** — `export.js` uses **canvg** (honors loaded font) + self-hosted
-    `public/vendor/jspdf.umd.min.js` & `canvg.umd.js` (no CDN). Re-renders in target lang, restores.
-11. **R10 Export popover** — anchored under the Export button (non-modal `dialog.show()` + positioning).
-12. **R11 Help** — "?" toolbar button → controls popover.
-13. **R12 Minimap** — `public/js/minimap.js`, toggle button, draggable viewport rect (scroll-fraction based).
-14. **R13** — README refreshed; layout tests extended (couple/variable-width/no-overlap/uniform-height).
+1. **T1 Colours** — boxes coloured by **role** (bloodline = cream `#fff8f0`, married-in spouse =
+   blue-grey `#e6ecf0`) + a ♂/♀ **gender accent** glyph; dark text throughout. Solid red dropped.
+   (`tree-render.js` drawBox; CSS node colour rules already removed in R2.)
+2. **T2 Font** — self-hosted **Tiro Devanagari Hindi** (`public/fonts/TiroDevanagariHindi-*.woff2`),
+   names in regular weight (fixes "lost in bold"). `@font-face` in main.css; `FONT` const in
+   tree-render; `node-metrics.M.FONT_NAME/FONT_META`; title CSS; export font.
+3. **T3 Married checkbox** — `#f-married` toggles `#spouse-fields`; unchecked → spouse data nulled
+   on save (single card). Couple still derived from spouse name. (`index.html`, `sidebar.js`)
+4. **T4 Edit parent + re-parent** — edit shows the actual current parent (no more "none"); changing
+   it swaps the relationship (delete old + create new). Excludes self + descendants. (`sidebar.js`)
+5. **T5 Edge origin** — child lines descend from the **marriage-connector centre** (couples), attach
+   to each child's bloodline-box centre. (`tree-render.js` anchors map + renderEdges)
+6. **T6 2-row packing** — `colsFor(n)` = ceil(n/2) for families >3 children. (`tree-layout.js`)
+7. **T7 Export fix** — canvg `resize(..., 'xMidYMid meet')` + `ignoreDimensions/ignoreClear` (no more
+   clipping); **title baked into the image** via canvas fillText with Tiro (Devanagari-safe, fixes
+   the `5 6 > 5 2 @` garbage); PDF uses JPEG + ASCII-only footer. (`export.js`)
+8. **T8 Banding** — soft low-alpha watermark (`fill-opacity 0.10`, rounded). (`tree-render.js`)
+9. **T9 Minimap** — stronger border + drop shadow. (`main.css`)
+10. **T10 Title** — empty-state placeholder; edits write the active-language field (EN→title_en).
+11. **T11** — README refreshed; layout tests for 2-row packing (22/22).
+12. **T12 Density** — smaller cards/min-width, tighter gaps (V_GAP 30, GROUP_GAP 30, H_GAP 14),
+    trimmed marriage gap → fits more / less scrolling.
 
-## Important Design Note (answered to user)
+## Known data note
 
-Layout is **fully recomputed from state on every change** (`setState → renderTree → widthMap +
-computeGroupedLayout` from scratch). Adding/editing a node re-measures and re-lays out the whole
-tree, so dynamic additions never break the layout.
+`title_en` in the live DB currently holds Devanagari ("वंशावली") — that's why EN header looked
+"broken". Fix is data: open the title in **EN mode** and type an English title; HI mode sets the
+Hindi one. Export now bakes whichever title matches the export language and renders it correctly.
 
-## What Still Needs Live Testing (next session)
+## What Still Needs Live Testing (after push/deploy)
 
-- [ ] Long names wrap (no `…`); couple boxes render with connector + per-person birth years
-- [ ] Spouse colour by gender; husband spouses are not mislabeled (no w./h.)
-- [ ] EN mode shows English title; HI shows Hindi
-- [ ] Hover card → ✎ + "+"; both work; absent from exported image
-- [ ] Add form parent dropdown adds child to chosen parent
-- [ ] **Export PNG + PDF actually download and show Devanagari** (canvg) — the key fix
-- [ ] Export popover appears under the button; minimap toggles + pans; help button shows controls
-- [ ] Generation banding + patriarch border visible and tasteful
-- [ ] Deploy: migration adds spouse columns to the live Railway DB (auto via `npm run migrate`)
+- [ ] Colours: cream bloodline / blue-grey spouse + ♂/♀ accent, all readable
+- [ ] Tiro font renders Hindi cleanly (not thin/lost)
+- [ ] Married checkbox shows/hides spouse fields; unticking removes the spouse box
+- [ ] Edit shows real parent; re-parenting moves the subtree; no self/descendant options
+- [ ] Child lines start from the = connector centre
+- [ ] Families >3 children pack into 2 rows; overall tree noticeably more compact
+- [ ] **Export PNG + PDF: full tree (no clipping) + correct title (no garbage)** — the key fix
+- [ ] Banding subtle; minimap clearly framed
+- [ ] Set an English title in EN mode → header + EN export show it
 
 ## Read First On Resume
 
-1. `.state/execution_plan.md` — Phase Summary + Pivot Round 2 details
+1. `.state/execution_plan.md` — Pivot Round 3 section
 2. `.state/conventions.md`
 
 ## Resume Prompt
 
-> Vanshavali family tree — Pivot Round 2 implemented locally (couple cards, dynamic widths,
-> canvg export, minimap, help, parent dropdown, title i18n, generation banding). 20/20 tests pass.
-> Not yet committed/deployed. Read `.state/resume.md`, then help verify the live UI testing
-> checklist and deploy (migration will add the new spouse columns).
+> Vanshavali — Round 3 implemented locally (role colours + gender accent, Tiro font, married
+> checkbox, edit-parent/re-parent, connector-origin edges, 2-row packing, fixed export
+> clipping + baked title, density pass). 22/22 tests pass. Committed, pending push/deploy.
+> Read `.state/resume.md`, then verify the live UI checklist (esp. export) and have the user
+> set an English title in EN mode.

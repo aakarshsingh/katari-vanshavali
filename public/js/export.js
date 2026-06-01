@@ -5,6 +5,8 @@
 // jsPDF and canvg are self-hosted under /vendor so export never depends on a CDN.
 
 const PARCHMENT = '#faf3e0';
+const INK_COLOR = '#1a1008';
+const EXPORT_FONT = "'Tiro Devanagari Hindi', Georgia, serif";
 const MAX_CANVAS_DIM = 8000; // stay well under browser canvas limits
 
 // Clone the current #tree-svg for export: drop hint + hover affordances, reset
@@ -26,7 +28,7 @@ function _buildExportClone() {
   return clone;
 }
 
-async function _rasterize(clone) {
+async function _rasterize(clone, title) {
   const w = parseInt(clone.getAttribute('width'), 10) || 800;
   const h = parseInt(clone.getAttribute('height'), 10) || 600;
 
@@ -38,10 +40,8 @@ async function _rasterize(clone) {
   canvas.height = Math.round(h * dpr);
 
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = PARCHMENT;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Make sure the Devanagari font is loaded before canvg measures/draws text.
+  // Make sure the Devanagari font is loaded before canvg / fillText draw text.
   if (document.fonts && document.fonts.ready) {
     try { await document.fonts.ready; } catch (e) { /* non-fatal */ }
   }
@@ -50,13 +50,32 @@ async function _rasterize(clone) {
     throw new Error('Renderer (canvg) not loaded');
   }
 
+  // Parchment background (identity transform, full device pixels).
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = PARCHMENT;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Render with canvg using resize + 'meet' so the ENTIRE tree fits the canvas
+  // (no clipping). ignoreDimensions makes canvg use our resize, not the SVG's
+  // own width/height; ignoreClear preserves the parchment fill.
   const svgStr = new XMLSerializer().serializeToString(clone);
   const v = await window.canvg.Canvg.fromString(ctx, svgStr, {
-    ignoreDimensions: false,
-    scaleWidth: canvas.width,
-    scaleHeight: canvas.height,
+    ignoreDimensions: true,
+    ignoreClear: true,
   });
+  v.resize(canvas.width, canvas.height, 'xMidYMid meet');
   await v.render();
+
+  // Bake the title into the image (page font renders Devanagari correctly,
+  // unlike jsPDF Helvetica). Device-pixel coords; scaled by dpr.
+  if (title) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = INK_COLOR;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${Math.round(22 * dpr)}px ${EXPORT_FONT}`;
+    ctx.fillText(title, canvas.width / 2, Math.round(34 * dpr));
+  }
 
   return { canvas, w, h };
 }
@@ -78,14 +97,18 @@ async function doExport(opts) {
   const format = (opts && opts.format) || 'png';
   const lang = (opts && opts.lang) || 'en';
 
+  const tree = (window.__state && window.__state.tree) || {};
+  const title = (lang === 'hi'
+    ? (tree.title_hi || tree.title_en)
+    : (tree.title_en || tree.title_hi)) || 'Vanshavali';
+
   try {
     const { canvas, w, h } = await _withExportLang(lang, async () => {
       const clone = _buildExportClone();
       if (!clone) throw new Error('Nothing to export');
-      return _rasterize(clone);
+      return _rasterize(clone, title);
     });
 
-    const title = (window.__state && window.__state.tree && window.__state.tree.title_en) || 'Vanshavali';
     const today = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
 
     if (format === 'pdf') {
@@ -96,26 +119,24 @@ async function doExport(opts) {
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
       const margin = 12;
-      const headerH = 20;
-      const footerH = 12;
+      const footerH = 10;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.text(title, pageW / 2, 14, { align: 'center' });
-
+      // Title is baked into the image (Devanagari-safe); place the image full-width.
       const availW = pageW - margin * 2;
-      const availH = pageH - headerH - footerH;
+      const availH = pageH - margin - footerH;
       const ratio = Math.min(availW / w, availH / h);
       const imgW = w * ratio;
       const imgH = h * ratio;
       const imgX = (pageW - imgW) / 2;
-      const imgY = headerH;
+      const imgY = margin;
 
-      doc.addImage(canvas.toDataURL('image/png'), 'PNG', imgX, imgY, imgW, imgH);
+      // JPEG keeps the PDF small; parchment background compresses cleanly.
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', imgX, imgY, imgW, imgH);
 
+      // ASCII-only footer (jsPDF Helvetica cannot render Devanagari).
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.text(title + '  \xB7  Exported ' + today, margin, pageH - 6);
+      doc.text('Exported ' + today, margin, pageH - 5);
 
       doc.save('vanshavali.pdf');
     } else {

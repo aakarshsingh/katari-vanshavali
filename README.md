@@ -6,8 +6,9 @@ A traditional Indian genealogical tree builder. Create, edit, and export your fa
 
 - **Bilingual** — every person stores an English name and a Hindi (Devanagari) name; the canvas *and* the title toggle language live
 - **Transliteration chips** — type an English name and get 3–5 AI-generated Devanagari options to click into the Hindi field
-- **Couple cards** — fill a person's Spouse field and the card automatically becomes a paired couple (two boxes joined by a marriage connector), each with its own birth/death year and gender colour. Leave Spouse blank for a single card.
-- **SVG tree renderer** — compact top-down grouped layout; **dynamic node widths with 2-line name wrapping** (no truncation); subtle generation banding; a heavier border on the patriarch; decorative double border
+- **Couple cards** — tick **Married** in the form to reveal spouse fields; the card then renders as a paired couple (two boxes joined by a marriage connector), each with its own birth/death year. Untick for a single card.
+- **Colour coding** — boxes are coloured by **role** (bloodline = cream, married-in spouse = blue-grey) with a small **♂/♀ gender accent** and dark, readable text. Child lines descend from the centre of the marriage connector.
+- **SVG tree renderer** — compact top-down grouped layout with **2-row child packing** (fits more per screen); **dynamic node widths + 2-line wrapping** (no truncation); soft generation banding; heavier patriarch border; **Tiro Devanagari Hindi** serif; decorative double border
 - **On-card actions** — hover a card for an **edit (✎)** icon and an **add-child (+)** button; right-click for the full menu (add / edit / delete)
 - **Pan / zoom / navigate** — scroll to pan, **Ctrl+scroll** (or toolbar buttons) to zoom, Fit to reset, and a toggleable **minimap** for large trees
 - **Discoverable controls** — a **?** help button in the toolbar lists every interaction
@@ -23,7 +24,7 @@ A traditional Indian genealogical tree builder. Create, edit, and export your fa
 | Frontend | Vanilla JS + SVG (no framework, no bundler) |
 | Icons | Lucide (CDN) |
 | Export | jsPDF 2.5.1 + canvg 3.0.10 (self-hosted under `public/vendor/`) |
-| Fonts | Noto Sans Devanagari (self-hosted woff2) |
+| Fonts | Tiro Devanagari Hindi (tree) + Noto Sans Devanagari — self-hosted woff2 |
 | Deploy | Railway |
 
 ## Local Development
@@ -190,8 +191,9 @@ All IDs are UUIDs. A single tree row owns all persons and relationships; cascadi
 |--------|-----|
 | Add anyone | **Add** button in toolbar → pick a parent from the dropdown (or *none* for a root) |
 | Add child quickly | Hover a card → **+**, or right-click → Add Child |
-| Make a couple | Edit a person and fill the **Spouse** field (name + optional birth/death/gender) |
+| Make a couple | Edit a person → tick **Married** → fill the spouse name (+ optional birth/death/gender) |
 | Edit person | Click a card, hover → **✎**, or right-click → Edit |
+| Re-parent / set parent | Edit a person → change the **Parent** dropdown (shows current parent; excludes self & descendants) |
 | Delete person | Right-click → Delete (confirmed) |
 | Switch language | EN / HI toggle in toolbar (canvas + title) |
 | Export | Export button (opens a popover beside it) → PNG or PDF + language |
