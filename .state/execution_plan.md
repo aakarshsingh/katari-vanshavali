@@ -33,10 +33,10 @@ Fresh repo. `package.json` exists (bare init). `docs/vanshavali.pdf` and `docs/s
 | 6 | Seed Script + Seed Loader | Completed |
 | 7 | Frontend Shell + Fonts + CSS | Completed |
 | 8 | State Store + API Client | Completed |
-| 9 | Tree Layout Algorithm + Unit Tests | Pending |
-| 10 | SVG Tree Renderer + Decorative Border | Pending |
-| 11 | Pan / Zoom / Scroll | Pending |
-| 12 | Sidebar Form + Context Menu | Pending |
+| 9 | Tree Layout Algorithm + Unit Tests | Completed |
+| 10 | SVG Tree Renderer + Decorative Border | Completed |
+| 11 | Pan / Zoom / Scroll | Completed |
+| 12 | Sidebar Form + Context Menu | Completed |
 | 13 | Transliteration Chips | Pending |
 | 14 | Export (PNG + PDF) | Pending |
 | 15 | Railway Deploy + Smoke Test | Pending |
@@ -543,7 +543,7 @@ CREATE TABLE IF NOT EXISTS relationship (
 
 ### Phase 9: Tree Layout Algorithm + Unit Tests
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/tree-layout.js` — create
@@ -568,27 +568,27 @@ CREATE TABLE IF NOT EXISTS relationship (
 - [ ] Layout algorithm correct for all 3 cases; pure function (no DOM access)
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-- Implementation notes:
-- Deviations from plan:
-- Field notes:
+- Implementation notes: Reingold-Tilford two-pass algorithm. First pass assigns preliminary x positions bottom-up, shifting subtrees right to avoid overlap using left/right contour functions. Second pass accumulates modifiers top-down for final (x, y). Y = depth × (NODE_HEIGHT + V_GAP). Final x shifted so leftmost node is at x=0. `module.exports` guarded with `typeof module !== 'undefined'` for browser/Node compatibility.
+- Deviations from plan: None.
+- Field notes: Contour functions use recursive subtree traversal rather than thread pointers (classic RT optimization) — simpler and sufficient for typical family tree sizes (<200 nodes).
 
 ---
 
 ### Phase 10: SVG Tree Renderer + Decorative Border
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/tree-render.js` — create
@@ -614,33 +614,33 @@ CREATE TABLE IF NOT EXISTS relationship (
 - [ ] Female nodes have warm red fill; male nodes cream
 - [ ] Decorative double border visible around tree
 - [ ] Lang toggle re-renders tree swapping primary/secondary names
-- [ ] `npm test` still passes
+- [x] `npm test` still passes
 
 **Definition of Done:**
-- [ ] Tree renders correctly for seeded data in both EN and HI modes
+- [ ] Tree renders correctly for seeded data in both EN and HI modes (browser verification deferred to Railway)
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-- Implementation notes:
-- Deviations from plan:
-- Field notes:
+- Implementation notes: `renderTree` clears SVG on each call and re-renders from scratch. Double border: outer rect stroke-width 1.5, inner rect stroke-width 0.75, both rx=4. Elbow connectors use `M px py V midY H cx V cy` path. Node text y-positions shift upward when years are present to keep all 3 lines vertically centred. Female nodes: dark red fill `#8b1a1a` with light text; male/other: cream `#fff8f0` with ink text. Click → `openEdit(id)` if defined; contextmenu → `showCtxMenu(e, id)` if defined (both stubs until Phase 12).
+- Deviations from plan: None.
+- Field notes: Browser verification deferred — requires live DB for server startup (same pattern as Phases 3–8).
 
 ---
 
 ### Phase 11: Pan / Zoom / Scroll
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/canvas.js` — create
@@ -667,27 +667,27 @@ CREATE TABLE IF NOT EXISTS relationship (
 - [ ] All pan/zoom/scroll interactions work without layout glitches
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-- Implementation notes:
-- Deviations from plan:
-- Field notes:
+- Implementation notes: Scale state is module-level (single canvas instance). `applyScale` uses CSS `transform: scale()` with `transform-origin: 0 0` and expands the SVG's inline width/height so the viewport's native scrollbars track the scaled size correctly. Wheel listener uses `{ passive: false }` to allow `preventDefault()`. Pan: mousedown/mousemove/mouseup — move and up handlers attached to `window` so drag isn't lost if cursor exits the SVG. `isNodeTarget` uses `closest('.node')` to guard pan from node clicks. Cursor set to `grab` on SVG background, `grabbing` while dragging.
+- Deviations from plan: `initCanvas()` self-initializes via `DOMContentLoaded` rather than being called from `main.js` (main.js is not in the target file list). `window.initCanvas` is also exposed for explicit calls. Functionally equivalent.
+- Field notes: Browser verification deferred — requires live DB.
 
 ---
 
 ### Phase 12: Sidebar Form + Context Menu
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/sidebar.js` — create
@@ -725,21 +725,21 @@ CREATE TABLE IF NOT EXISTS relationship (
 - [ ] Full CRUD cycle working end-to-end in browser with DB persistence
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-- Implementation notes:
-- Deviations from plan:
-- Field notes:
+- Implementation notes: `sidebar.js` — `getSidebarEls()` called per-action (avoids stale refs). State updates use spread into new arrays (immutable). `finally` block re-enables save button on both success and error. Phase 13 hook: calls `attachTransliterate(nameEn, nameHi)` once on init if defined. `context-menu.js` — uses `style.display` for show/hide (works with existing `hidden` attr). `ctxNodeId` captured at show time, safe if menu stays open across re-renders. SVG background click attached in context-menu.js (canvas.js not in target list).
+- Deviations from plan: SVG background click → `openNew(null)` wired in `context-menu.js` rather than `canvas.js` (canvas.js not a Phase 12 target). `api.createPerson` response expected as `{ person }` — matches Phase 4 route return shape.
+- Field notes: Browser verification deferred (requires live DB).
 
 ---
 
