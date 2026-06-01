@@ -1,20 +1,28 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const PADDING = 80;
-const STRIP_BOX_W = 150;
-const STRIP_BOX_H = 50;
-const STRIP_H_GAP = 16;
-const STRIP_V_PAD = 24;
+const STRIP_BOX_W = 140;
+const STRIP_BOX_H = 48;
+const STRIP_H_GAP = 20;
+const STRIP_V_PAD = 20;
 const INK = '#1a1008';
 const FILL_MALE = '#fff8f0';
 const FILL_FEMALE = '#8b1a1a';
 const FILL_ANCESTOR = '#f5ede0';
 const TEXT_MUTED = '#6b5a44';
 const TEXT_SPOUSE = '#cc2200';
+// Max chars before truncating with ellipsis (prevents text overflowing node box)
+const NAME_MAX = 22;
+const SPOUSE_MAX = 20;
 
 function svgEl(tag, attrs) {
   const el = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   return el;
+}
+
+function clip(text, max) {
+  if (!text) return '';
+  return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
 
 function renderTree(state) {
@@ -37,11 +45,10 @@ function renderTree(state) {
     ? splitTree(persons, relationships, 'Bade Lal Singh')
     : { ancestorChain: [], focalId: null, descendantPersons: persons, descendantRelationships: relationships };
 
-  const { ancestorChain, descendantPersons, descendantRelationships } = split;
+  const { ancestorChain, focalId, descendantPersons, descendantRelationships } = split;
   const personMap = Object.fromEntries(persons.map(p => [p.id, p]));
 
-  const stripHeight = ancestorChain.length > 0 ? STRIP_BOX_H + STRIP_V_PAD * 2 : 0;
-
+  // Compute descendant layout first — needed to know focal person's x position
   const layout = computeLayout(descendantPersons, descendantRelationships);
   if (!layout || layout.length === 0) return;
 
@@ -51,8 +58,18 @@ function renderTree(state) {
   const maxX = Math.max(...layout.map(n => n.x + nodeW));
   const maxY = Math.max(...layout.map(n => n.y + nodeH));
 
-  const stripTotalW = ancestorChain.length * STRIP_BOX_W + Math.max(0, ancestorChain.length - 1) * STRIP_H_GAP;
-  const svgW = Math.max(maxX + PADDING * 2, stripTotalW + PADDING * 2);
+  // Ancestor strip dimensions
+  const hasStrip = ancestorChain.length > 0;
+  const stripTotalW = ancestorChain.length * STRIP_BOX_W
+    + Math.max(0, ancestorChain.length - 1) * STRIP_H_GAP;
+  const stripHeight = hasStrip ? STRIP_BOX_H + STRIP_V_PAD * 2 : 0;
+
+  // Center ancestor strip above the focal person (Bade Lal Singh)
+  const focalPos = focalId ? layoutMap[focalId] : null;
+  const focalCenterX = PADDING + (focalPos ? focalPos.x + nodeW / 2 : maxX / 2);
+  const stripStartX = Math.max(PADDING, focalCenterX - stripTotalW / 2);
+
+  const svgW = Math.max(maxX + PADDING * 2, stripStartX + stripTotalW + PADDING);
   const svgH = maxY + PADDING * 2 + stripHeight;
 
   svg.setAttribute('width', svgW);
@@ -61,8 +78,12 @@ function renderTree(state) {
 
   renderBorder(svg, svgW, svgH);
 
-  if (ancestorChain.length > 0) {
-    renderAncestorStrip(svg, ancestorChain, personMap, lang, PADDING, PADDING + STRIP_V_PAD);
+  if (hasStrip) {
+    renderAncestorStrip(
+      svg, ancestorChain, personMap, lang,
+      stripStartX, PADDING + STRIP_V_PAD,
+      focalCenterX, PADDING + stripHeight
+    );
   }
 
   renderEdges(svg, layout, layoutMap, descendantRelationships, nodeW, nodeH, stripHeight);
@@ -80,7 +101,7 @@ function renderBorder(svg, w, h) {
   }));
 }
 
-function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY) {
+function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY, focalCenterX, focalTopY) {
   const group = svgEl('g', { class: 'ancestor-strip' });
 
   for (let i = 0; i < ancestorChain.length; i++) {
@@ -94,16 +115,16 @@ function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY
       fill: FILL_ANCESTOR, stroke: INK, 'stroke-width': 0.75, rx: 3,
     }));
 
-    const name = lang === 'hi' ? (person.name_hi || person.name_en) : person.name_en;
+    const name = clip(lang === 'hi' ? (person.name_hi || person.name_en) : person.name_en, NAME_MAX);
     const nameEl = svgEl('text', {
-      x: x + STRIP_BOX_W / 2,
-      y: startY + STRIP_BOX_H / 2,
+      x: x + STRIP_BOX_W / 2, y: startY + STRIP_BOX_H / 2,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': 11, fill: INK,
     });
     nameEl.textContent = name;
     group.appendChild(nameEl);
 
+    // Horizontal connector to next ancestor box
     if (i < ancestorChain.length - 1) {
       group.appendChild(svgEl('line', {
         x1: x + STRIP_BOX_W, y1: startY + STRIP_BOX_H / 2,
@@ -111,6 +132,20 @@ function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY
         stroke: INK, 'stroke-width': 1,
       }));
     }
+  }
+
+  // Dotted vertical connector from last ancestor down to focal person
+  if (ancestorChain.length > 0) {
+    const lastBoxLeft = startX + (ancestorChain.length - 1) * (STRIP_BOX_W + STRIP_H_GAP);
+    const lastCenterX = lastBoxLeft + STRIP_BOX_W / 2;
+    const lastBottomY = startY + STRIP_BOX_H;
+
+    group.appendChild(svgEl('line', {
+      x1: lastCenterX, y1: lastBottomY,
+      x2: focalCenterX, y2: focalTopY,
+      stroke: INK, 'stroke-width': 1.5,
+      'stroke-dasharray': '5,3',
+    }));
   }
 
   svg.appendChild(group);
@@ -150,10 +185,11 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
     const fill = isFemale ? FILL_FEMALE : FILL_MALE;
     const textColor = isFemale ? '#fdf6e3' : INK;
 
-    const name = lang === 'hi' ? (person.name_hi || person.name_en) : person.name_en;
-    const spouse = lang === 'hi' ? person.spouse_hi : person.spouse_en;
+    const name   = clip(lang === 'hi' ? (person.name_hi || person.name_en) : person.name_en, NAME_MAX);
+    const rawSpouse = lang === 'hi' ? person.spouse_hi : person.spouse_en;
+    const spouse  = rawSpouse ? clip(rawSpouse, SPOUSE_MAX) : null;
     const hasSpouse = !!spouse;
-    const hasYears = !!(person.birth_year || person.death_year);
+    const hasYears  = !!(person.birth_year || person.death_year);
 
     const g = svgEl('g', {
       class: 'node',
@@ -210,8 +246,7 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
         class: 'years',
         x: cx, y: yearsY,
         'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        'font-size': 9,
-        fill: isFemale ? '#c9b08a' : TEXT_MUTED,
+        'font-size': 9, fill: isFemale ? '#c9b08a' : TEXT_MUTED,
       });
       yearsEl.textContent = formatYears(person.birth_year, person.death_year);
       g.appendChild(yearsEl);

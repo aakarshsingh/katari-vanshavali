@@ -1,6 +1,6 @@
 const NODE_WIDTH = 170;
 const NODE_HEIGHT = 90;
-const H_GAP = 12;
+const H_GAP = 18;
 const V_GAP = 50;
 
 // Reingold-Tilford layout for a rooted tree.
