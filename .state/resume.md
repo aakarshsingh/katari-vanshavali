@@ -2,31 +2,54 @@
 
 ## Current State
 
-- **Last completed phase:** Phase 12 — Sidebar Form + Context Menu
-- **Next phase:** Phase 13 — Transliteration Chips
-- **Commit:** 45a82da — phases 9–12 committed.
+- **Last completed phase:** Phase 16 — README + Documentation
+- **Pending phase:** Phase 15 — Railway Deploy + Smoke Test (Active — awaiting live URL)
+- **All code committed and pushed:** `main` branch at `cc13f9e`
 
-## Key Context (do not re-debate)
+## What Was Done
 
-- Stack: Express + PostgreSQL on Railway; vanilla JS frontend; no framework; no build step
-- No local PostgreSQL. All DB-dependent verifications deferred to Railway (Phase 15).
-- DB is mocked in tests: `jest.mock('../src/db/client', () => ({ query: jest.fn() }))`
-- `sidebar.js` already calls `attachTransliterate(nameEnInput, nameHiInput)` and `attachTransliterate(spouseEnInput, spouseHiInput)` on init — if `attachTransliterate` is defined at that point. `transliterate.js` loads before `sidebar.js` in the script order, so `attachTransliterate` will be available.
-- Chip containers `#chips-name` and `#chips-spouse` are already in `public/index.html`.
-- `public/js/transliterate.js` script tag is already in `index.html` (Phase 7).
+Phases 0–14 and 16 are fully complete and committed. Phase 15 is Active — code is on GitHub, user is performing Railway setup manually.
 
-## Read First
+## Railway Setup Steps (user is doing these now)
 
-1. `.state/execution_plan.md` — Phase 13 details
-2. `public/js/sidebar.js` — see `initSidebar()` for the `attachTransliterate` hook
-3. `public/index.html` — confirm `#chips-name` and `#chips-spouse` div IDs
+1. railway.app → New Project → Deploy from GitHub → `aakarshsingh/katari-vanshavali`
+2. + New → Database → PostgreSQL (injects `DATABASE_URL` automatically)
+3. Service Variables: add `ANTHROPIC_API_KEY=sk-ant-...` and `PORT=3000`
+4. Deploy — start command is `npm run migrate && npm start` (from `railway.toml`)
+5. Shell tab: `node scripts/seed-pdf.js` then `npm run seed`
+6. Return with the live Railway URL for smoke-test verification
+
+## What To Do On Resume
+
+User will return with a Railway URL. Run smoke-test verification:
+
+```bash
+curl https://<railway-url>/health
+# expect: {"status":"ok"}
+
+curl https://<railway-url>/api/tree
+# expect: {"tree":{...},"persons":[...],"relationships":[...]}
+```
+
+Then ask user to confirm in browser:
+- Tree renders with seeded family data
+- Add a test person → reload → confirm it persists
+- Export PNG and PDF from the live URL
+
+Once all checks pass:
+- Mark Phase 15 **Completed** in `.state/execution_plan.md`
+- Tick all Self-Audit items
+- Fill Completion Record
+- Commit `.state/execution_plan.md`
+
+## Read First On Resume
+
+1. `.state/execution_plan.md` — Phase 15 section (verification checklist)
 
 ## Resume Prompt
 
-> I'm building a Vanshavali (Indian family tree) web tool. Phases 0–12 are complete
-> and committed. All decisions are locked in `.state/`. Run `/as-p5-execute` to
-> implement **Phase 13 only** (Transliteration Chips) from `.state/execution_plan.md`.
-> Key context: `sidebar.js` already calls `attachTransliterate(nameEnInput, nameHiInput)`
-> and `attachTransliterate(spouseEnInput, spouseHiInput)` on DOMContentLoaded if the
-> function exists — so `transliterate.js` just needs to define and expose
-> `attachTransliterate`. Chip containers `#chips-name` and `#chips-spouse` are in the HTML.
+> I'm building a Vanshavali (Indian family tree) web tool. Phases 0–14 and 16 are
+> complete and committed. Phase 15 (Railway Deploy) is Active — I've just finished
+> the Railway setup. The live URL is https://<your-url>. Run `/as-p5-execute` to
+> complete Phase 15 by running smoke-test verification against that URL, then mark
+> it Completed in `.state/execution_plan.md`.
