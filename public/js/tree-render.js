@@ -10,6 +10,7 @@ const FILL_FEMALE = '#8b1a1a';
 const FILL_ANCESTOR = '#f5ede0';
 const TEXT_MUTED = '#6b5a44';
 const TEXT_SPOUSE = '#cc2200';
+const BAND_FILL = '#efe4cc';      // faint generation banding
 // Max chars before truncating with ellipsis (prevents text overflowing node box)
 const NAME_MAX = 22;
 const SPOUSE_MAX = 20;
@@ -48,17 +49,20 @@ function renderTree(state) {
   const { ancestorChain, focalId, descendantPersons, descendantRelationships } = split;
   const personMap = Object.fromEntries(persons.map(p => [p.id, p]));
 
+  // Per-node widths (couple units are wider) drive the layout spacing.
+  const widthOf = (typeof NodeMetrics !== 'undefined') ? NodeMetrics.widthMap(persons, lang) : null;
+
   // Compute descendant layout first — needed to know focal person's x position
   // Grouped layout: each top-level branch is a compact group, children wrap in rows
   const layout = (typeof computeGroupedLayout === 'function' && split.focalId)
-    ? computeGroupedLayout(descendantPersons, descendantRelationships, split.focalId)
-    : computeLayout(descendantPersons, descendantRelationships);
+    ? computeGroupedLayout(descendantPersons, descendantRelationships, split.focalId, widthOf)
+    : computeLayout(descendantPersons, descendantRelationships, widthOf);
   if (!layout || layout.length === 0) return;
 
-  const { width: nodeW, height: nodeH } = layout[0];
+  const nodeH = layout[0].height; // uniform across the tree
   const layoutMap = Object.fromEntries(layout.map(n => [n.id, n]));
 
-  const maxX = Math.max(...layout.map(n => n.x + nodeW));
+  const maxX = Math.max(...layout.map(n => n.x + n.width));
   const maxY = Math.max(...layout.map(n => n.y + nodeH));
 
   // Ancestor strip dimensions
@@ -69,7 +73,7 @@ function renderTree(state) {
 
   // Center ancestor strip above the focal person (Bade Lal Singh)
   const focalPos = focalId ? layoutMap[focalId] : null;
-  const focalCenterX = PADDING + (focalPos ? focalPos.x + nodeW / 2 : maxX / 2);
+  const focalCenterX = PADDING + (focalPos ? focalPos.x + focalPos.width / 2 : maxX / 2);
   const stripStartX = Math.max(PADDING, focalCenterX - stripTotalW / 2);
 
   const svgW = Math.max(maxX + PADDING * 2, stripStartX + stripTotalW + PADDING);
@@ -80,6 +84,7 @@ function renderTree(state) {
   svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
 
   renderBorder(svg, svgW, svgH);
+  renderBands(svg, layout, nodeH, stripHeight, svgW);
 
   if (hasStrip) {
     renderAncestorStrip(
@@ -89,8 +94,24 @@ function renderTree(state) {
     );
   }
 
-  renderEdges(svg, layout, layoutMap, descendantRelationships, nodeW, nodeH, stripHeight);
-  renderNodes(svg, layout, personMap, lang, nodeW, nodeH, stripHeight);
+  renderEdges(svg, layoutMap, descendantRelationships, nodeH, stripHeight);
+  renderNodes(svg, layout, personMap, lang, nodeH, stripHeight, focalId);
+}
+
+// Subtle alternating banding per generation row → easier to read generations.
+function renderBands(svg, layout, nodeH, yOffset, svgW) {
+  const rowsY = [...new Set(layout.map(n => n.y))].sort((a, b) => a - b);
+  const g = svgEl('g', { class: 'gen-bands' });
+  rowsY.forEach((ry, i) => {
+    if (i % 2 === 1) {
+      g.appendChild(svgEl('rect', {
+        x: 16, y: PADDING + yOffset + ry - 6,
+        width: svgW - 32, height: nodeH + 12,
+        fill: BAND_FILL, stroke: 'none',
+      }));
+    }
+  });
+  svg.appendChild(g);
 }
 
 function renderBorder(svg, w, h) {
@@ -138,33 +159,35 @@ function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY
     }
   }
 
-  // Dotted vertical connector from last ancestor down to focal person
+  // Orthogonal dotted connector from last ancestor down to the focal person
+  // (down -> across -> down), consistent with the tree's edge style. Dotted
+  // signals "collapsed ancestor line" without the awkward diagonal.
   if (ancestorChain.length > 0) {
     const lastBoxLeft = startX + (ancestorChain.length - 1) * (STRIP_BOX_W + STRIP_H_GAP);
     const lastCenterX = lastBoxLeft + STRIP_BOX_W / 2;
     const lastBottomY = startY + STRIP_BOX_H;
+    const midY = (lastBottomY + focalTopY) / 2;
 
-    group.appendChild(svgEl('line', {
-      x1: lastCenterX, y1: lastBottomY,
-      x2: focalCenterX, y2: focalTopY,
-      stroke: INK, 'stroke-width': 1.5,
-      'stroke-dasharray': '5,3',
+    group.appendChild(svgEl('path', {
+      d: `M ${lastCenterX} ${lastBottomY} V ${midY} H ${focalCenterX} V ${focalTopY}`,
+      fill: 'none', stroke: INK, 'stroke-width': 1.5,
+      'stroke-dasharray': '4,3', 'stroke-linejoin': 'round',
     }));
   }
 
   svg.appendChild(group);
 }
 
-function renderEdges(svg, layout, layoutMap, relationships, nodeW, nodeH, yOffset) {
+function renderEdges(svg, layoutMap, relationships, nodeH, yOffset) {
   const edgeGroup = svgEl('g', { class: 'edges' });
   for (const rel of relationships) {
     const parent = layoutMap[rel.parent_id];
     const child = layoutMap[rel.child_id];
     if (!parent || !child) continue;
 
-    const px = PADDING + parent.x + nodeW / 2;
+    const px = PADDING + parent.x + parent.width / 2;
     const py = PADDING + yOffset + parent.y + nodeH;
-    const cx = PADDING + child.x + nodeW / 2;
+    const cx = PADDING + child.x + child.width / 2;
     const cy = PADDING + yOffset + child.y;
     const midY = (py + cy) / 2;
 
@@ -176,8 +199,88 @@ function renderEdges(svg, layout, layoutMap, relationships, nodeW, nodeH, yOffse
   svg.appendChild(edgeGroup);
 }
 
-function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
+// Draws one labeled box (person or spouse): rect + wrapped name lines + birth/death.
+function drawBox(group, boxX, y, h, box, gender, role, emphasis) {
+  const M = NodeMetrics.M;
+  const isFemale = gender === 'F';
+  const fill = isFemale ? FILL_FEMALE : FILL_MALE;
+  const textColor = isFemale ? '#fdf6e3' : INK;
+  const metaColor = isFemale ? '#e8cfae' : TEXT_MUTED;
+
+  group.appendChild(svgEl('rect', {
+    x: boxX, y, width: box.width, height: h,
+    fill, stroke: INK, 'stroke-width': emphasis ? 2.5 : 1, rx: 3,
+  }));
+
+  const cx = boxX + box.width / 2;
+  const meta = box.metaLine;
+  const contentH = box.nameLines.length * M.LINE_NAME + (meta ? M.LINE_META + 2 : 0);
+  const top = y + (h - contentH) / 2;
+
+  box.nameLines.forEach((line, i) => {
+    const cls = role === 'person' && i === 0 ? 'name-primary' : 'name-line';
+    const t = svgEl('text', {
+      class: cls,
+      x: cx, y: top + i * M.LINE_NAME + M.LINE_NAME / 2,
+      'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      'font-size': 14, 'font-weight': 'bold', fill: textColor,
+    });
+    t.textContent = line;
+    t.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
+    group.appendChild(t);
+  });
+
+  if (meta) {
+    const m = svgEl('text', {
+      class: 'years',
+      x: cx, y: top + box.nameLines.length * M.LINE_NAME + (M.LINE_META + 2) / 2,
+      'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      'font-size': 10, 'font-style': 'italic', fill: metaColor,
+    });
+    m.textContent = meta;
+    m.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
+    group.appendChild(m);
+  }
+}
+
+// Hover affordances: edit (pencil) top-right of the unit, add-child (+) below it.
+// Class "affordance" so export can strip them. They stop propagation so they
+// don't trigger the card's click-to-edit.
+function addAffordances(g, person, unitX, unitW, y, nodeH) {
+  const aff = svgEl('g', { class: 'affordance' });
+
+  // Edit (pencil)
+  const ex = unitX + unitW - 11, ey = y + 11;
+  const edit = svgEl('g', { class: 'aff-btn aff-edit' });
+  edit.appendChild(svgEl('circle', { cx: ex, cy: ey, r: 9, fill: '#fff8f0', stroke: INK, 'stroke-width': 1 }));
+  const eg = svgEl('text', { x: ex, y: ey, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 10, fill: INK });
+  eg.textContent = '✎';
+  edit.appendChild(eg);
+  edit.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (typeof openEdit === 'function') openEdit(person.id);
+  });
+  aff.appendChild(edit);
+
+  // Add child (+)
+  const ax = unitX + unitW / 2, ay = y + nodeH + 12;
+  const add = svgEl('g', { class: 'aff-btn aff-add' });
+  add.appendChild(svgEl('circle', { cx: ax, cy: ay, r: 10, fill: '#e8dcc0', stroke: INK, 'stroke-width': 1 }));
+  const ag = svgEl('text', { x: ax, y: ay, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15, 'font-weight': 'bold', fill: INK });
+  ag.textContent = '+';
+  add.appendChild(ag);
+  add.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (typeof openNew === 'function') openNew(person.id);
+  });
+  aff.appendChild(add);
+
+  g.appendChild(aff);
+}
+
+function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId) {
   const nodeGroup = svgEl('g', { class: 'nodes' });
+  const metrics = (typeof NodeMetrics !== 'undefined') ? NodeMetrics : null;
 
   for (const pos of layout) {
     const person = personMap[pos.id];
@@ -185,15 +288,7 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
 
     const x = PADDING + pos.x;
     const y = PADDING + yOffset + pos.y;
-    const isFemale = person.gender === 'F';
-    const fill = isFemale ? FILL_FEMALE : FILL_MALE;
-    const textColor = isFemale ? '#fdf6e3' : INK;
-
-    const name   = clip(lang === 'hi' ? (person.name_hi || person.name_en) : person.name_en, NAME_MAX);
-    const rawSpouse = lang === 'hi' ? person.spouse_hi : person.spouse_en;
-    const spouse  = rawSpouse ? clip(rawSpouse, SPOUSE_MAX) : null;
-    const hasSpouse = !!spouse;
-    const hasYears  = !!(person.birth_year || person.death_year);
+    const isPatriarch = focalId && person.id === focalId;
 
     const g = svgEl('g', {
       class: 'node',
@@ -202,61 +297,27 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
       'data-name-hi': person.name_hi || '',
     });
 
-    g.appendChild(svgEl('rect', {
-      x, y, width: nodeW, height: nodeH,
-      fill, stroke: INK, 'stroke-width': 1, rx: 3,
-    }));
+    if (metrics) {
+      const spec = metrics.cardSpec(person, lang);
+      drawBox(g, x + spec.person.offsetX, y, nodeH, spec.person.box, spec.person.gender, 'person', isPatriarch);
 
-    const cx = x + nodeW / 2;
-    const lineCount = 1 + (hasSpouse ? 1 : 0) + (hasYears ? 1 : 0);
-    let nameY, spouseY, yearsY;
-
-    if (lineCount === 3) {
-      nameY   = y + nodeH * 0.28;
-      spouseY = y + nodeH * 0.52;
-      yearsY  = y + nodeH * 0.76;
-    } else if (lineCount === 2) {
-      nameY   = y + nodeH * 0.35;
-      spouseY = y + nodeH * 0.68;
-      yearsY  = y + nodeH * 0.68;
+      if (spec.isCouple) {
+        drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse');
+        // Marriage connector (double line) between the two boxes
+        const x1 = x + spec.person.box.width;
+        const x2 = x + spec.spouse.offsetX;
+        const midY = y + nodeH / 2;
+        g.appendChild(svgEl('line', { class: 'marriage', x1, y1: midY - 2, x2, y2: midY - 2, stroke: INK, 'stroke-width': 1 }));
+        g.appendChild(svgEl('line', { class: 'marriage', x1, y1: midY + 2, x2, y2: midY + 2, stroke: INK, 'stroke-width': 1 }));
+      }
     } else {
-      nameY = y + nodeH * 0.50;
+      g.appendChild(svgEl('rect', {
+        x, y, width: pos.width, height: nodeH,
+        fill: FILL_MALE, stroke: INK, 'stroke-width': 1, rx: 3,
+      }));
     }
 
-    const nameEl = svgEl('text', {
-      class: 'name-primary',
-      x: cx, y: nameY,
-      'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': 14, 'font-weight': 'bold', fill: textColor,
-    });
-    nameEl.textContent = name;
-    nameEl.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
-    g.appendChild(nameEl);
-
-    if (hasSpouse) {
-      const label = lang === 'hi' ? 'पत्नी: ' : 'w. ';
-      const spouseEl = svgEl('text', {
-        class: 'name-spouse',
-        x: cx, y: spouseY,
-        'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        'font-size': 12,
-        fill: isFemale ? '#e8a090' : TEXT_SPOUSE,
-      });
-      spouseEl.textContent = label + spouse;
-      spouseEl.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
-      g.appendChild(spouseEl);
-    }
-
-    if (hasYears) {
-      const yearsEl = svgEl('text', {
-        class: 'years',
-        x: cx, y: yearsY,
-        'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        'font-size': 9, fill: isFemale ? '#c9b08a' : TEXT_MUTED,
-      });
-      yearsEl.textContent = formatYears(person.birth_year, person.death_year);
-      g.appendChild(yearsEl);
-    }
+    addAffordances(g, person, x, pos.width, y, nodeH);
 
     g.addEventListener('click', (e) => {
       e.stopPropagation();

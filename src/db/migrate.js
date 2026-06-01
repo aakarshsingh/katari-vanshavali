@@ -32,6 +32,12 @@ async function runMigrations() {
       )
     `);
 
+    // Pivot R2: spouse gets its own birth/death/gender (paired couple boxes).
+    // Idempotent — safe to re-run on an already-seeded DB.
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_birth_year INTEGER`);
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year INTEGER`);
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_gender TEXT`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS relationship (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

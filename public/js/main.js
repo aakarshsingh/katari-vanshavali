@@ -9,7 +9,19 @@ function setState(partial) {
   state = Object.freeze({ ...state, ...partial });
   window.__state = state;
   if (typeof renderTree === 'function') renderTree(state);
+  renderTitle();
+  if (typeof updateMinimap === 'function') updateMinimap();
   return state;
+}
+
+// Header title follows the current language (falls back to the other language).
+function renderTitle() {
+  const el = document.getElementById('tree-title');
+  if (!el) return;
+  if (!state.tree) return;
+  el.textContent = state.lang === 'hi'
+    ? (state.tree.title_hi || state.tree.title_en || 'वंशावली')
+    : (state.tree.title_en || state.tree.title_hi || 'Vanshavali');
 }
 
 async function init() {
@@ -35,6 +47,25 @@ async function init() {
   wireLangToggle();
   wireTitleEdit();
   wireExportDialog();
+  wireHelp();
+}
+
+function wireHelp() {
+  const btn = document.getElementById('btn-help');
+  const pop = document.getElementById('help-popover');
+  if (!btn || !pop) return;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!pop.hidden) { pop.hidden = true; return; }
+    const r = btn.getBoundingClientRect();
+    pop.hidden = false;
+    pop.style.left = `${Math.max(8, r.left)}px`;
+    pop.style.top = `${r.bottom + 6}px`;
+  });
+  document.addEventListener('click', (e) => {
+    if (!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) pop.hidden = true;
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') pop.hidden = true; });
 }
 
 function focusPerson(nameEn) {
@@ -85,22 +116,24 @@ function wireTitleEdit() {
   const titleEl = document.getElementById('tree-title');
   if (!titleEl) return;
   titleEl.addEventListener('blur', async () => {
+    if (!state.tree) return;
     const newTitle = titleEl.textContent.trim();
-    if (!newTitle || !state.tree || newTitle === state.tree.title_en) return;
+    const field = state.lang === 'hi' ? 'title_hi' : 'title_en';
+    const current = state.tree[field] || '';
+    if (newTitle === current) return;
+    // Server requires title_en non-empty; revert an attempt to clear it.
+    if (field === 'title_en' && !newTitle) { renderTitle(); return; }
     try {
-      const { tree } = await api.patchTree({ title_en: newTitle });
+      const { tree } = await api.patchTree({ [field]: newTitle });
       setState({ tree });
     } catch (err) {
       console.error('Failed to update title:', err.message);
-      titleEl.textContent = state.tree ? state.tree.title_en : 'वंशावली';
+      renderTitle();
     }
   });
   titleEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
-    if (e.key === 'Escape') {
-      titleEl.textContent = state.tree ? state.tree.title_en : 'वंशावली';
-      titleEl.blur();
-    }
+    if (e.key === 'Escape') { renderTitle(); titleEl.blur(); }
   });
 }
 
@@ -111,7 +144,29 @@ function wireExportDialog() {
   const confirmBtn = document.getElementById('btn-export-confirm');
   if (!exportBtn || !dialog) return;
 
-  exportBtn.addEventListener('click', () => dialog.showModal());
+  function positionNearButton() {
+    const r = exportBtn.getBoundingClientRect();
+    dialog.style.visibility = 'hidden';
+    dialog.show(); // non-modal so we can position it
+    const dw = dialog.offsetWidth;
+    let left = r.right - dw;            // right-align to the button
+    if (left < 8) left = 8;
+    dialog.style.left = `${left}px`;
+    dialog.style.top = `${r.bottom + 6}px`;
+    dialog.style.visibility = '';
+  }
+
+  exportBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (dialog.open) { dialog.close(); return; }
+    positionNearButton();
+  });
+  // Close when clicking outside the popover
+  document.addEventListener('click', (e) => {
+    if (dialog.open && !dialog.contains(e.target) && e.target !== exportBtn && !exportBtn.contains(e.target)) {
+      dialog.close();
+    }
+  });
   cancelBtn && cancelBtn.addEventListener('click', () => dialog.close());
   confirmBtn && confirmBtn.addEventListener('click', () => {
     const form = document.getElementById('export-form');

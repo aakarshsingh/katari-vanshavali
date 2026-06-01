@@ -42,11 +42,26 @@ Fresh repo. `package.json` exists (bare init). `docs/vanshavali.pdf` and `docs/s
 | 15 | Railway Deploy + Smoke Test | Completed |
 | 16 | README + Documentation | Completed |
 | 17 | Auto-seed on First Boot | Completed |
-| 9A | Amend — Layout: Ancestor Split + Focal Root | Pending |
-| 10A | Amend — Renderer: Ancestor Strip + Spouse + Lang-Only Nodes | Pending |
-| 11A | Amend — Pan/Zoom: Ctrl+Wheel Zoom, Plain Scroll = Pan | Pending |
-| 12A | Amend — Context Menu: Remove Background Click | Pending |
-| 18 | Initial View — Center on Bade Lal Singh | Pending |
+| 9A | Amend — Layout: Ancestor Split + Focal Root | Completed |
+| 10A | Amend — Renderer: Ancestor Strip + Spouse + Lang-Only Nodes | Completed |
+| 11A | Amend — Pan/Zoom: Ctrl+Wheel Zoom, Plain Scroll = Pan | Completed |
+| 12A | Amend — Context Menu: Remove Background Click | Completed |
+| 18 | Initial View — Center on Bade Lal Singh | Completed |
+| **— Pivot Round 2 (feedback 2026-06-01) — implemented, awaiting live UI test —** | | |
+| R0 | Amend — Schema + API: spouse birth/death/gender fields | Completed |
+| R1 | Amend — Node sizing: dynamic width + text wrapping | Completed |
+| R2 | Amend — Paired couple boxes + marriage connector + colors | Completed |
+| R3 | Amend — Compact layout tuning (fit more per page) | Completed |
+| R4 | Amend — Ancestor lineage connector polish | Completed |
+| R5 | Amend — Generation differentiation (banding + patriarch) | Completed |
+| R6 | Amend — Title i18n (EN/HI header switch) | Completed |
+| R7 | Amend — Node affordances: hover **+** (add child) & **edit** icon | Completed |
+| R8 | Amend — Add form: parent dropdown | Completed |
+| R9 | Amend — Export robust rewrite (canvg, self-hosted jsPDF) | Completed |
+| R10 | Amend — Export dialog → popover anchored to button | Completed |
+| R11 | Amend — Visible-interaction help hint | Completed |
+| R12 | New — Minimap (toggleable) | Completed |
+| R13 | Amend — README refresh + layout tests | Completed |
 
 ---
 
@@ -1161,3 +1176,585 @@ _(Filled after verification)_
 
 **Completion Record:**
 _(Filled after verification)_
+
+---
+
+# Pivot Round 2 — Feedback 2026-06-01
+
+**Trigger:** UI feedback on the deployed app (screenshots `21_51_45` EN, `21_53_37` HI).
+**Nature:** Mostly defect amendments to completed UI work + 1 new module (minimap).
+**Architect decisions (locked):** Compact top-down layout (tune current, no reorientation);
+spouse rendered as **paired couple boxes** with marriage connector; include **minimap** and
+**generation differentiation**; node **edit icon** + **add-child +** affordances on every card.
+**Goal:** durable fixes ("once and for all") — prefer proven patterns/libraries over hand-rolled.
+
+**Dependency order:** R0 -> R1 -> R2 -> R3 (layout chain first), then R4-R13 (independent polish).
+
+---
+
+### Phase R0: Amend — Schema + API: spouse birth/death/gender fields
+
+**Status:** Pending
+**Reason:** Paired couple boxes must show the spouse's own birth/death and color the spouse box by gender. Spouse is currently name-only (`spouse_en`/`spouse_hi`); no birth/gender data exists.
+
+**Target Files:**
+- `src/db/migrate.js`
+- `src/routes/persons.js`
+- `src/middleware/validate.js`
+- `public/js/sidebar.js`
+- `public/index.html`
+
+**Changes:**
+- `migrate.js`: `ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_birth_year INTEGER`, same for `spouse_death_year INTEGER`, `spouse_gender TEXT` (idempotent; safe on existing DB).
+- `persons.js`: include the 3 new fields in INSERT and PATCH column lists.
+- `validate.js`: year-range validation for spouse years; `spouse_gender` in {M,F,other,null}.
+- `index.html`: add spouse birth/death number inputs + spouse gender radio under the spouse section.
+- `sidebar.js`: `collectForm` / `populateForm` read & write the new fields.
+
+**Verification:**
+- [ ] `npm test` passes (API tests updated for new fields)
+- [ ] Migrate runs idempotently against an already-seeded DB
+
+**Definition of Done:**
+- [ ] A spouse can have birth/death/gender persisted and round-tripped via the form
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R1: Amend — Node sizing: dynamic width + text wrapping
+
+**Status:** Pending
+**Reason:** Names truncate with ellipsis ("Dr. Harishankar Kumar...", "w. Major General Bimal..."). Fixed 170px node width cannot hold long names.
+
+**Target Files:**
+- `public/js/tree-layout.js`
+- `public/js/tree-render.js`
+
+**Changes:**
+- Add a text-measurement helper (offscreen `<canvas>` `measureText`, or hidden SVG `<text>` `getComputedTextLength`) — pure utility, memoized by string+font.
+- `tree-layout.js`: compute a **per-node width** = clamp(measured longest line + padding, MIN_W, MAX_W). Layout consumes per-node widths instead of the single `NODE_WIDTH` constant.
+- `tree-render.js`: read each node's width from the layout result; **wrap** names longer than MAX_W onto 2 lines (word-break) instead of clipping; grow node height when wrapped. Remove/relax the `NAME_MAX`/`SPOUSE_MAX` ellipsis clamp.
+
+**Verification:**
+- [ ] No ellipsis on any seeded node at default zoom
+- [ ] Long names wrap to 2 lines, box grows to fit
+- [ ] `npm test` layout tests updated for variable widths
+
+**Definition of Done:**
+- [ ] All seeded names fully visible on the live tree
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R2: Amend — Paired couple boxes + marriage connector + colors
+
+**Status:** Pending
+**Reason:** Spouse currently shown as low-contrast red "w. ..." text inside the person box; "w." is wrong for husbands; representation is cramped. Architect chose paired couple boxes.
+
+**Target Files:**
+- `public/js/tree-layout.js`
+- `public/js/tree-render.js`
+- `public/css/main.css`
+
+**Changes:**
+- **Single vs couple is derived, not a separate mode:** a node renders as a couple unit **iff** `spouse_en` (or `spouse_hi`) is non-empty; otherwise a single box. Filling/clearing the spouse field is the only "setup" needed.
+- A married person occupies a **couple unit**: person box + spouse box joined by a short horizontal **marriage connector** (`=` double line). Layout treats the couple unit's combined width as the node footprint; child edges descend from the **couple's center**.
+- Each box shows: name (wrapped per R1) + that person's own `b./d.` line below the name (fixes "show birth below the name"). Spouse box uses `spouse_*` fields from R0.
+- **No more "w./h." prefix** — each box is a labeled person; the relationship is implied by the connector. (Resolves the husband/wife mislabel entirely.)
+- Color: spouse box filled by **spouse_gender** (fallback: opposite of person's gender); female fill `#8b1a1a` with light text, male/neutral cream with dark ink. Replaces the low-contrast `#cc2200`/`#e8a090` spouse text — improves contrast (WCAG AA target).
+- Edges/strip updated to anchor on couple-center, not box-center.
+
+**Verification:**
+- [ ] Married nodes show two boxes + connector; birth under each name
+- [ ] Husband spouses no longer labeled "w."
+- [ ] Spouse box color has sufficient contrast (AA)
+- [ ] `npm test` layout tests pass with couple widths
+
+**Definition of Done:**
+- [ ] Couples render side-by-side with correct colors and birth years on the live tree
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R3: Amend — Compact layout tuning (fit more per page)
+
+**Status:** Pending
+**Reason:** User repeatedly asks to "use a non-linear lineup to fit more on the same page." Decision: keep top-down but pack tighter (no reorientation).
+
+**Target Files:**
+- `public/js/tree-layout.js`
+
+**Changes:**
+- Tune `H_GAP`, `V_GAP`, `GROUP_GAP`, and `MAX_COLS` so leaf-heavy families wrap into denser blocks.
+- Make childless leaf cards more compact (shorter height when single-line, no spouse).
+- Re-balance group packing so wide branches don't dominate horizontal space.
+- Keep changes data-driven via constants at top of file (no hardcoded magic mid-function).
+
+**Verification:**
+- [ ] Full seeded tree fits in materially less area than before at fit-to-screen
+- [ ] No node overlaps (layout test assertion)
+- [ ] `npm test` passes
+
+**Definition of Done:**
+- [ ] Noticeably more of the tree visible per screen at default zoom
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R4: Amend — Ancestor lineage connector polish
+
+**Status:** Pending
+**Reason:** The diagonal dashed line from the ancestor strip to Bade Lal Singh looks awkward.
+
+**Target Files:**
+- `public/js/tree-render.js`
+
+**Changes:**
+- Replace the single diagonal dashed `<line>` with an **orthogonal** connector (down -> across -> down) matching the tree's edge style, or a clean centered vertical drop with a subtle dotted segment only where it bridges the gap.
+- Align the strip's exit point with the focal couple's true center (post-R2).
+
+**Verification:**
+- [ ] Connector is orthogonal/clean, visually consistent with tree edges
+- [ ] Still clearly distinguishes "collapsed ancestors" from active tree
+
+**Definition of Done:**
+- [ ] Ancestor->focal link reads cleanly on the live tree
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R5: Amend — Generation differentiation (banding + patriarch)
+
+**Status:** Pending
+**Reason:** All nodes share identical visual weight; hard to read generations.
+
+**Target Files:**
+- `public/js/tree-render.js`
+- `public/css/main.css`
+
+**Changes:**
+- Add subtle horizontal **generation banding** (alternating very-faint parchment tint per depth row) behind nodes, inside the decorative border.
+- Give the **patriarch / focal node** (Bade Lal Singh) a slightly thicker border to distinguish root from leaves.
+- Keep it subtle — must not fight the vintage aesthetic (conventions.md).
+
+**Verification:**
+- [ ] Generations visually distinguishable; aesthetic preserved
+- [ ] Banding spans correctly under wrapped/compact rows
+
+**Definition of Done:**
+- [ ] Generation cues visible and tasteful on the live tree
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R6: Amend — Title i18n (EN/HI header switch)
+
+**Status:** Pending
+**Reason:** In English mode the header still shows "वंशावली" (Hindi). Title is hardcoded and not language-aware.
+
+**Target Files:**
+- `public/index.html`
+- `public/js/main.js`
+- `src/routes/tree.js`
+
+**Changes:**
+- Render the header title from `state.tree.title_en` / `title_hi` based on `state.lang`; re-render on lang toggle.
+- Inline edit writes to the field matching the current language (PATCH `title_en` or `title_hi`).
+- Ensure `tree.js` PATCH accepts `title_hi` as well as `title_en`.
+- Sensible fallback when a language's title is empty (show the other, or a default).
+
+**Verification:**
+- [ ] EN mode shows English title; HI mode shows Hindi title
+- [ ] Editing in each mode persists to the right column
+- [ ] `npm test` passes
+
+**Definition of Done:**
+- [ ] Header language matches canvas language on the live app
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R7: Amend — Node affordances: hover + (add child) & edit icon
+
+**Status:** Pending
+**Reason:** Add-child and edit are invisible (right-click only). User wants a "+" under each node and an edit icon on each card.
+
+**Target Files:**
+- `public/js/tree-render.js`
+- `public/css/main.css`
+- `public/js/sidebar.js` (reuse `openNew`/`openEdit`)
+
+**Changes:**
+- Render a small **edit (pencil) icon** in each node's corner and a **"+" add-child button** below each node, shown on hover/focus (always visible on touch/no-hover).
+- Wire "+" -> `openNew(personId)`; pencil -> `openEdit(personId)`. Stop propagation so they don't conflict with the node's existing click-to-edit.
+- Keep targets large enough to click; ensure they scale with zoom.
+
+**Verification:**
+- [ ] Hovering a node reveals "+" and edit icon
+- [ ] "+" opens Add-Child form with parent preset; pencil opens Edit
+- [ ] Icons don't appear in exported image (stripped in export clone)
+
+**Definition of Done:**
+- [ ] Add-child and edit are discoverable directly on each card
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R8: Amend — Add form: parent dropdown
+
+**Status:** Pending
+**Reason:** "Add Mode should let you select a dropdown parent." Currently Add (toolbar) only makes a root; child requires right-click on a specific node.
+
+**Target Files:**
+- `public/index.html`
+- `public/js/sidebar.js`
+
+**Changes:**
+- Add a **Parent** `<select>` to the Add form, populated from `state.persons` (name_en, "— none (root) —" option). Hidden/locked in Edit mode and when opened via a node's "+" (pre-selected, but still editable).
+- On submit (new), use the selected parent for the relationship instead of relying solely on `sidebarParentId`.
+
+**Verification:**
+- [ ] Toolbar "Add" lets you pick any existing parent or "none"
+- [ ] Selecting a parent creates the relationship; "none" creates a root
+- [ ] `npm test` passes
+
+**Definition of Done:**
+- [ ] A child can be added to any chosen parent from the Add form
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R9: Amend — Export robust rewrite (canvg, self-hosted jsPDF)
+
+**Status:** Pending
+**Reason:** "Export still doesn't work." Root causes: (1) `@font-face` fonts do not load when an SVG is rendered via `<img>` (current path) — fragile double-draw hack; (2) jsPDF is loaded from the `unpkg` CDN and silently fails (`window.jspdf` undefined) if the CDN is blocked.
+
+**Target Files:**
+- `public/js/export.js`
+- `public/index.html`
+- `public/vendor/` (new — self-hosted libs)
+
+**Changes:**
+- **Self-host** `jsPDF` (and, if adopted, `canvg`) under `public/vendor/` instead of CDN — removes the network dependency that breaks export.
+- Replace the SVG->`<img>`->canvas path with **`canvg`** (parses SVG and rasterizes via Canvas2D using the page's already-loaded Devanagari font) — the proven fix for embedded-font export. Keep a base64-font-in-`<defs>` fallback.
+- Use `await document.fonts.ready` before rasterizing.
+- Add a one-time diagnostic during execution (console: which step fails) to confirm the real failure before/after the fix.
+- Guard large-canvas dimension limits (cap dpr if width*dpr would exceed browser canvas max).
+
+**Verification:**
+- [ ] PNG export downloads and shows Devanagari + Latin correctly
+- [ ] PDF export (A3 landscape) downloads with the full tree
+- [ ] Works with network throttled / CDN blocked (self-hosted libs)
+- [ ] Hover "+"/edit affordances absent from the exported image
+
+**Definition of Done:**
+- [ ] Export reliably produces correct PNG and PDF on the live app
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies _(canvg is a justified, scoped addition — replaces fragile hand-rolled code)_
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R10: Amend — Export dialog → popover anchored to button
+
+**Status:** Pending
+**Reason:** Export `<dialog>` opens centered/left, away from the Export button.
+
+**Target Files:**
+- `public/index.html`
+- `public/css/main.css`
+- `public/js/main.js`
+
+**Changes:**
+- Convert the centered `<dialog showModal()>` to a small **popover anchored under the Export button** (CSS positioned relative to the toolbar-right, or the Popover API / non-modal `dialog.show()` with positioning).
+- Click-outside / Esc closes it.
+
+**Verification:**
+- [ ] Export options appear directly beneath the Export button
+- [ ] Closes on outside-click and Esc; export still fires correctly
+
+**Definition of Done:**
+- [ ] Export popover is anchored to its button on the live app
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R11: Amend — Visible-interaction help hint
+
+**Status:** Pending
+**Reason:** Right-click CRUD and other mouse controls are invisible. Add a discoverable hint.
+
+**Target Files:**
+- `public/index.html`
+- `public/css/main.css`
+- `public/js/main.js`
+
+**Changes:**
+- Add a small **"?" / help button** in the toolbar that opens a brief tooltip/card listing controls: scroll = pan, Ctrl+scroll = zoom, click card = edit, "+" = add child, right-click = menu.
+- Optional: first-load one-time inline hint near the tree, dismissible.
+
+**Verification:**
+- [ ] Help affordance is visible and explains the core interactions
+- [ ] Does not obstruct the canvas; dismissible
+
+**Definition of Done:**
+- [ ] Mouse controls are discoverable without reading the README
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R12: New — Minimap (toggleable)
+
+**Status:** Pending
+**Reason:** Large trees are easy to get lost in when zoomed. Add a toggleable corner minimap.
+
+**Target Files:**
+- `public/js/minimap.js` (new)
+- `public/index.html`
+- `public/css/main.css`
+
+**Changes:**
+- New `minimap.js`: render a scaled-down overview of the tree SVG in a bottom corner with a **viewport rectangle** reflecting current scroll/zoom; clicking/dragging the rect pans the main viewport.
+- Toggle button in toolbar to show/hide; hidden by default on small trees.
+- Subscribe to scroll/zoom (reuse `canvas.js` scale state) to keep the rect in sync.
+
+**Verification:**
+- [ ] Minimap shows full tree + a viewport box that tracks scroll/zoom
+- [ ] Clicking/dragging the box pans the main canvas
+- [ ] Toggle hides/shows it; excluded from export
+
+**Definition of Done:**
+- [ ] Minimap aids navigation on the live large tree
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+---
+
+### Phase R13: Amend — README refresh + layout tests
+
+**Status:** Pending
+**Reason:** README is stale (describes invisible interactions, pre-pivot behavior); layout tests must cover dynamic width + couple layout.
+
+**Target Files:**
+- `README.md`
+- `tests/tree-layout.test.js`
+
+**Changes:**
+- Update README: current interaction model (card edit icon, "+", parent dropdown, help button, minimap), export behavior, screenshots note.
+- Add/extend layout tests: dynamic node widths, couple-unit footprint, no-overlap with wrapped nodes, compact packing.
+
+**Verification:**
+- [ ] README matches actual app behavior
+- [ ] `npm test` passes with new assertions
+
+**Definition of Done:**
+- [ ] Docs accurate; layout regressions covered by tests
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+

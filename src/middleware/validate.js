@@ -20,6 +20,18 @@ function requireValidYear(field) {
   };
 }
 
+function requireGender(field) {
+  return (req, res, next) => {
+    const val = req.body[field];
+    if (val !== undefined && val !== null && val !== '') {
+      if (!['M', 'F', 'other'].includes(val)) {
+        return res.status(400).json({ error: `${field} must be one of M, F, other` });
+      }
+    }
+    next();
+  };
+}
+
 function requireUUID(field) {
   return (req, res, next) => {
     const val = req.params[field] !== undefined ? req.params[field] : req.body[field];
@@ -30,4 +42,4 @@ function requireUUID(field) {
   };
 }
 
-module.exports = { requireName, requireValidYear, requireUUID };
+module.exports = { requireName, requireValidYear, requireUUID, requireGender };

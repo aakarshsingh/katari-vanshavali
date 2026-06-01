@@ -16,6 +16,9 @@
         <i data-lucide="languages"></i>
         <span id="lang-label">EN</span>
       </button>
+      <button id="btn-help" class="toolbar-btn" title="Controls &amp; help">
+        <i data-lucide="help-circle"></i>
+      </button>
     </div>
 
     <div class="toolbar-center">
@@ -32,6 +35,9 @@
       </button>
       <button id="btn-fit"      class="toolbar-btn" title="Fit to screen">
         <i data-lucide="maximize-2"></i>
+      </button>
+      <button id="btn-minimap"  class="toolbar-btn" title="Toggle minimap">
+        <i data-lucide="map"></i>
       </button>
       <button id="btn-add-person" class="toolbar-btn" title="Add root person">
         <i data-lucide="user-plus"></i>
@@ -62,6 +68,13 @@
       </div>
 
       <form id="person-form" novalidate>
+        <div class="form-group" id="parent-group">
+          <label for="f-parent">Parent</label>
+          <select id="f-parent" name="parent">
+            <option value="">— none (root) —</option>
+          </select>
+        </div>
+
         <div class="form-group">
           <label for="f-name-en">Name (English) <span class="required">*</span></label>
           <input type="text" id="f-name-en" name="name_en" autocomplete="off" required />
@@ -93,6 +106,32 @@
         <div class="form-group">
           <label for="f-spouse-hi">Spouse (Hindi) <span class="field-hint">auto-filled</span></label>
           <input type="text" id="f-spouse-hi" name="spouse_hi" autocomplete="off" class="devanagari" readonly />
+        </div>
+
+        <div class="form-group form-group--row" id="spouse-meta">
+          <div class="form-group">
+            <label for="f-spouse-birth">Spouse birth year</label>
+            <input type="number" id="f-spouse-birth" name="spouse_birth_year" min="1000" max="2100" />
+          </div>
+          <div class="form-group">
+            <label for="f-spouse-death">Spouse death year</label>
+            <input type="number" id="f-spouse-death" name="spouse_death_year" min="1000" max="2100" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Spouse gender <span class="field-hint">defaults to opposite</span></label>
+          <div class="radio-row">
+            <label class="radio-label">
+              <input type="radio" name="spouse_gender" value="M" /> Male
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="spouse_gender" value="F" /> Female
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="spouse_gender" value="other" /> Other
+            </label>
+          </div>
         </div>
 
         <div class="form-group">
@@ -131,6 +170,25 @@
       </form>
     </aside>
   </main>
+
+  <div id="minimap" hidden>
+    <div id="minimap-holder"></div>
+    <div id="minimap-rect"></div>
+  </div>
+
+  <div id="help-popover" hidden>
+    <h3>Controls</h3>
+    <ul>
+      <li><b>Scroll</b> — pan the canvas</li>
+      <li><b>Ctrl + Scroll</b> — zoom in / out</li>
+      <li><b>Click a card</b> — edit that person</li>
+      <li><b>✎</b> (hover a card) — edit</li>
+      <li><b>+</b> (hover a card) — add a child</li>
+      <li><b>Right-click a card</b> — menu: add / edit / delete</li>
+      <li><b>Add</b> (toolbar) — add anyone, pick a parent</li>
+      <li>Tip: a person becomes a <b>couple</b> when you fill the Spouse field</li>
+    </ul>
+  </div>
 
   <div id="ctx-menu" role="menu" hidden>
     <button class="ctx-item" id="ctx-add-child" role="menuitem">
@@ -173,13 +231,16 @@
   </dialog>
 
   <script src="/js/api.js"></script>
+  <script src="/js/node-metrics.js"></script>
   <script src="/js/tree-layout.js"></script>
   <script src="/js/tree-render.js"></script>
   <script src="/js/canvas.js"></script>
+  <script src="/js/minimap.js"></script>
   <script src="/js/transliterate.js"></script>
   <script src="/js/sidebar.js"></script>
   <script src="/js/context-menu.js"></script>
-  <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="/vendor/jspdf.umd.min.js"></script>
+  <script src="/vendor/canvg.umd.js"></script>
   <script src="/js/export.js"></script>
   <script src="/js/main.js"></script>
   <script>lucide.createIcons();</script>

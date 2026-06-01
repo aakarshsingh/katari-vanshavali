@@ -1,15 +1,29 @@
-const NODE_WIDTH = 170;
-const NODE_HEIGHT = 90;
-const H_GAP = 18;
-const V_GAP = 50;
+const NODE_WIDTH = 170;   // fallback width when no per-node measurement is provided
+const NODE_HEIGHT = 90;   // fallback height (Node/test env without NodeMetrics)
+const H_GAP = 16;
+const V_GAP = 38;   // tightened (R3) — denser generations, fits more per page
+
+// Uniform row height across the tree (clean generations). Uses measured value
+// in the browser; falls back to the constant in Node tests.
+function unitHeight() {
+  return (typeof NodeMetrics !== 'undefined' && NodeMetrics.uniformHeight)
+    ? NodeMetrics.uniformHeight()
+    : NODE_HEIGHT;
+}
+
+// Returns id -> width, defaulting to NODE_WIDTH when not measured.
+function widthGetter(widthOf) {
+  return (id) => (widthOf && widthOf[id] != null) ? widthOf[id] : NODE_WIDTH;
+}
 
 // Reingold-Tilford layout for a rooted tree.
 // Returns [{id, x, y, width, height}] — pure function, no DOM access.
-function computeLayout(persons, relationships) {
+function computeLayout(persons, relationships, widthOf) {
   if (!persons || persons.length === 0) return [];
 
   const childrenOf = buildAdjacency(persons, relationships);
   const roots = findRoots(persons, relationships);
+  const getW = widthGetter(widthOf);
 
   // If no root found (e.g. disconnected or cyclic), treat first person as root
   const root = roots.length > 0 ? roots[0] : persons[0].id;
@@ -27,8 +41,8 @@ function computeLayout(persons, relationships) {
     id: n.id,
     x: n.x - minX,
     y: n.y,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
+    width: getW(n.id),
+    height: unitHeight(),
   }));
 }
 
@@ -111,7 +125,7 @@ function leftContour(nodeId, childrenOf, positions, modifiers, mod = 0, depth = 
 // Second pass: walk tree accumulating modifier, compute final (x, y).
 function collectFinal(nodeId, modAccum, childrenOf, positions, modifiers, result, depth) {
   const x = positions[nodeId].prelim + modAccum;
-  const y = depth * (NODE_HEIGHT + V_GAP);
+  const y = depth * (unitHeight() + V_GAP);
   result.push({ id: nodeId, x, y });
   const children = childrenOf[nodeId] || [];
   for (const child of children) {
@@ -180,99 +194,77 @@ function splitTree(persons, relationships, focalNameEn) {
 // Each top-level branch (direct child of focal) becomes a self-contained group.
 // Within each group, children are wrapped into rows of MAX_COLS and centered.
 
-const MAX_COLS   = 3;   // max siblings per row within a group
-const GROUP_GAP  = 48;  // horizontal gap between top-level groups
+const MAX_COLS   = 4;   // max siblings per row within a group (R3: wrap wider, shorter)
+const GROUP_GAP  = 36;  // horizontal gap between top-level groups (R3: tightened)
 
 // Recursively lays out a subtree rooted at nodeId.
-// Returns { positions:[{id,x,y}], width, height } — all coords relative to (0,0).
-function layoutCompact(nodeId, childrenOf, depth) {
+// getW: id -> unit width (couple or single). Returns { positions:[{id,x,y}], width, height }.
+function layoutCompact(nodeId, childrenOf, depth, getW) {
   const children = childrenOf[nodeId] || [];
+  const selfW = getW(nodeId);
+  const H = unitHeight();
 
   if (children.length === 0) {
-    return {
-      positions: [{ id: nodeId, x: 0, y: 0 }],
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-    };
+    return { positions: [{ id: nodeId, x: 0, y: 0 }], width: selfW, height: H };
   }
 
-  const childLayouts = children.map(c => layoutCompact(c, childrenOf, depth + 1));
+  const childLayouts = children.map(c => layoutCompact(c, childrenOf, depth + 1, getW));
 
   // Chunk into rows of MAX_COLS
   const rows = [];
-  for (let i = 0; i < children.length; i += MAX_COLS) {
+  for (let i = 0; i < childLayouts.length; i += MAX_COLS) {
     rows.push(childLayouts.slice(i, i + MAX_COLS));
   }
 
-  let currentY = NODE_HEIGHT + V_GAP;
+  // Block width = widest row (and at least the node's own width)
   let blockWidth = 0;
+  for (const row of rows) {
+    const rowW = row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1);
+    if (rowW > blockWidth) blockWidth = rowW;
+  }
+  blockWidth = Math.max(blockWidth, selfW);
+
+  // Place each row centered within blockWidth
   const childPositions = [];
-
+  let currentY = H + V_GAP;
   for (const row of rows) {
     const rowW = row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1);
-    blockWidth = Math.max(blockWidth, rowW);
-
-    // Center each row
-    const rowOffsetX = (blockWidth - rowW) / 2;
-    let x = rowOffsetX;
+    let x = Math.max(0, (blockWidth - rowW) / 2);
     let rowH = 0;
-
     for (const cl of row) {
       for (const pos of cl.positions) {
         childPositions.push({ id: pos.id, x: x + pos.x, y: currentY + pos.y });
       }
       x += cl.width + H_GAP;
-      rowH = Math.max(rowH, cl.height);
+      if (cl.height > rowH) rowH = cl.height;
     }
     currentY += rowH + V_GAP;
   }
 
-  // After blockWidth is known, re-center rows that were set with blockWidth=0 initially.
-  // Second pass: re-center (blockWidth is now final).
-  // Re-do row centering with correct blockWidth.
-  childPositions.length = 0;
-  currentY = NODE_HEIGHT + V_GAP;
-
-  for (const row of rows) {
-    const rowW = row.reduce((s, l) => s + l.width, 0) + H_GAP * (row.length - 1);
-    const rowOffsetX = Math.max(0, (blockWidth - rowW) / 2);
-    let x = rowOffsetX;
-    let rowH = 0;
-
-    for (const cl of row) {
-      for (const pos of cl.positions) {
-        childPositions.push({ id: pos.id, x: x + pos.x, y: currentY + pos.y });
-      }
-      x += cl.width + H_GAP;
-      rowH = Math.max(rowH, cl.height);
-    }
-    currentY += rowH + V_GAP;
-  }
-
-  // Center parent over the full block width
-  const nodeX = Math.max(0, (blockWidth - NODE_WIDTH) / 2);
-
+  const nodeX = Math.max(0, (blockWidth - selfW) / 2);
   return {
     positions: [{ id: nodeId, x: nodeX, y: 0 }, ...childPositions],
-    width: Math.max(blockWidth, NODE_WIDTH),
+    width: blockWidth,
     height: currentY - V_GAP,
   };
 }
 
 // Top-level grouped layout: each direct child of focal is a group.
 // Groups are placed side-by-side; focal person is centered above them all.
-function computeGroupedLayout(persons, relationships, focalId) {
+function computeGroupedLayout(persons, relationships, focalId, widthOf) {
   if (!persons || persons.length === 0) return [];
 
   const childrenOf = buildAdjacency(persons, relationships);
   const groups = childrenOf[focalId] || [];
+  const getW = widthGetter(widthOf);
+  const H = unitHeight();
 
   if (groups.length === 0) {
-    return [{ id: focalId, x: 0, y: 0, width: NODE_WIDTH, height: NODE_HEIGHT }];
+    return [{ id: focalId, x: 0, y: 0, width: getW(focalId), height: H }];
   }
 
   // Layout each group subtree
-  const groupLayouts = groups.map(gId => layoutCompact(gId, childrenOf, 0));
+  const groupLayouts = groups.map(gId => layoutCompact(gId, childrenOf, 0, getW));
 
   // Arrange groups side by side, offset downward by one level
   let offsetX = 0;
@@ -283,7 +275,7 @@ function computeGroupedLayout(persons, relationships, focalId) {
       allPositions.push({
         id: pos.id,
         x: pos.x + offsetX,
-        y: pos.y + NODE_HEIGHT + V_GAP,
+        y: pos.y + H + V_GAP,
       });
     }
     offsetX += gl.width + GROUP_GAP;
@@ -291,7 +283,7 @@ function computeGroupedLayout(persons, relationships, focalId) {
 
   // Focal person centered above all groups
   const totalW = offsetX - GROUP_GAP;
-  const focalX = Math.max(0, (totalW - NODE_WIDTH) / 2);
+  const focalX = Math.max(0, (totalW - getW(focalId)) / 2);
   allPositions.push({ id: focalId, x: focalX, y: 0 });
 
   // Normalise so min-x = 0
@@ -300,8 +292,8 @@ function computeGroupedLayout(persons, relationships, focalId) {
     id: n.id,
     x: n.x - minX,
     y: n.y,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
+    width: getW(n.id),
+    height: H,
   }));
 }
 

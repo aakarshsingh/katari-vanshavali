@@ -160,49 +160,11 @@ main {
   font-style: italic;
 }
 
-/* ── SVG node styles ── */
-.node rect {
-  fill: var(--node-fill);
-  stroke: var(--ink);
-  stroke-width: 1.5;
-  rx: 3;
-}
-
-.node.female rect {
-  fill: var(--red-female);
-}
-
-.node .name-primary {
-  font-family: 'Noto Sans Devanagari', Georgia, serif;
-  font-size: 13px;
-  font-weight: 700;
-  fill: var(--ink);
-}
-
-.node.female .name-primary {
-  fill: var(--cream);
-}
-
-.node .name-secondary {
-  font-family: 'Noto Sans Devanagari', Georgia, serif;
-  font-size: 10px;
-  fill: var(--ink-muted);
-}
-
-.node.female .name-secondary {
-  fill: rgba(253, 246, 227, 0.75);
-}
-
-.node .years {
-  font-family: Georgia, serif;
-  font-size: 9px;
-  fill: var(--ink-faint);
-}
-
-.node.female .years {
-  fill: rgba(253, 246, 227, 0.6);
-}
-
+/* ── SVG node styles ──
+   Fills, strokes, and text colours are set as presentation attributes by
+   tree-render.js — per box, since a couple has two independently-gendered
+   boxes. We deliberately do NOT set them in CSS, because CSS would override
+   the presentation attributes and break per-box colouring / patriarch border. */
 .node:hover rect {
   stroke-width: 2.5;
 }
@@ -213,17 +175,25 @@ main {
   stroke-width: 1.5;
 }
 
-/* ── Export dialog ── */
+/* ── Export popover (anchored under the Export button) ── */
 #export-dialog {
   border: 2px solid var(--ink);
   border-radius: 4px;
   background: var(--cream);
-  padding: 24px;
-  min-width: 260px;
+  padding: 20px;
+  min-width: 240px;
+  box-shadow: 0 6px 20px rgba(26, 16, 8, 0.25);
+}
+
+/* Open as a positioned popover, not a centered modal */
+#export-dialog[open] {
+  position: fixed;
+  margin: 0;
+  inset: auto;
 }
 
 #export-dialog::backdrop {
-  background: rgba(26, 16, 8, 0.5);
+  background: transparent;
 }
 
 #export-dialog h3 {
@@ -379,4 +349,75 @@ main {
   font-size: 0.85rem;
   cursor: pointer;
   user-select: none;
+}
+
+/* ── Node hover affordances (R7) ───────────────────────────────────────── */
+.node { cursor: pointer; }
+.node .affordance {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.node:hover .affordance,
+.node:focus-within .affordance {
+  opacity: 1;
+  pointer-events: auto;
+}
+.node .aff-btn { cursor: pointer; }
+.node .aff-btn:hover circle { fill: #d9c9a3; }
+/* Touch / no-hover devices: keep affordances visible */
+@media (hover: none) {
+  .node .affordance { opacity: 1; pointer-events: auto; }
+}
+
+/* ── Help popover (R11) ────────────────────────────────────────────────── */
+#help-popover {
+  position: fixed;
+  z-index: 60;
+  max-width: 320px;
+  padding: 16px 18px;
+  background: var(--cream);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(26, 16, 8, 0.25);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+#help-popover[hidden] { display: none; }
+#help-popover h3 {
+  font-size: 1rem;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+#help-popover ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+#help-popover b { color: var(--ink); }
+
+/* ── Minimap (R12) ─────────────────────────────────────────────────────── */
+#minimap {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 50;
+  padding: 4px;
+  background: var(--cream);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(26, 16, 8, 0.25);
+}
+#minimap[hidden] { display: none; }
+#minimap-holder {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--cream);
+}
+#minimap-holder svg { display: block; }
+#minimap-rect {
+  position: absolute;
+  border: 1.5px solid var(--red-female);
+  background: rgba(139, 26, 26, 0.12);
+  pointer-events: none;
+  top: 0;
+  left: 0;
 }

@@ -1,127 +1,96 @@
-const SVG_NS = 'http://www.w3.org/2000/svg';
-let _fontB64 = null;
+// Export the tree to PNG / PDF.
+// Uses canvg to rasterize the live SVG — canvg renders via Canvas2D using the
+// page's already-loaded Noto Sans Devanagari font, which fixes the long-standing
+// problem of @font-face fonts not loading when an SVG is drawn through <img>.
+// jsPDF and canvg are self-hosted under /vendor so export never depends on a CDN.
 
-async function _getFontB64() {
-  if (_fontB64) return _fontB64;
-  const res = await fetch('/fonts/NotoSansDevanagari-Regular.woff2');
-  const buf = await res.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  _fontB64 = btoa(binary);
-  return _fontB64;
-}
+const PARCHMENT = '#faf3e0';
+const MAX_CANVAS_DIM = 8000; // stay well under browser canvas limits
 
-function _buildSvgClone(lang) {
+// Clone the current #tree-svg for export: drop hint + hover affordances, reset
+// any zoom transform so we capture the full tree at natural resolution.
+function _buildExportClone() {
   const svg = document.getElementById('tree-svg');
   if (!svg) return null;
   const clone = svg.cloneNode(true);
 
-  // Strip canvas zoom transform so export renders at natural resolution
   clone.style.transform = '';
   clone.style.transformOrigin = '';
   clone.style.width = '';
   clone.style.height = '';
 
-  // Remove hint text
   const hint = clone.querySelector('#empty-hint');
   if (hint) hint.remove();
-
-  // Rebuild name text for export lang; remove secondary name for a clean single-lang view
-  clone.querySelectorAll('g.node').forEach(function(g) {
-    const nameEn = g.getAttribute('data-name-en') || '';
-    const nameHi = g.getAttribute('data-name-hi') || '';
-    const targetName = lang === 'hi' ? (nameHi || nameEn) : nameEn;
-
-    const primary = g.querySelector('text.name-primary');
-    if (primary) primary.textContent = targetName;
-
-    const secondary = g.querySelector('text.name-secondary');
-    if (secondary) secondary.remove();
-  });
+  clone.querySelectorAll('.affordance').forEach((el) => el.remove());
 
   return clone;
 }
 
-function _injectFont(clone, fontB64) {
-  let defs = clone.querySelector('defs');
-  if (!defs) {
-    defs = document.createElementNS(SVG_NS, 'defs');
-    clone.insertBefore(defs, clone.firstChild);
-  }
-  const style = document.createElementNS(SVG_NS, 'style');
-  style.textContent = [
-    "@font-face {",
-    "  font-family: 'Noto Sans Devanagari';",
-    "  src: url('data:font/woff2;base64," + fontB64 + "') format('woff2');",
-    "}",
-  ].join('\n');
-  defs.appendChild(style);
-}
-
-function _svgToCanvas(clone) {
+async function _rasterize(clone) {
   const w = parseInt(clone.getAttribute('width'), 10) || 800;
   const h = parseInt(clone.getAttribute('height'), 10) || 600;
-  const dpr = 2;
+
+  let dpr = 2;
+  while (dpr > 1 && (w * dpr > MAX_CANVAS_DIM || h * dpr > MAX_CANVAS_DIM)) dpr -= 0.25;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = PARCHMENT;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Make sure the Devanagari font is loaded before canvg measures/draws text.
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch (e) { /* non-fatal */ }
+  }
+
+  if (!window.canvg || !window.canvg.Canvg) {
+    throw new Error('Renderer (canvg) not loaded');
+  }
 
   const svgStr = new XMLSerializer().serializeToString(clone);
-  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-
-  return new Promise(function(resolve, reject) {
-    const img = new Image();
-    img.onload = function() {
-      const canvas = document.createElement('canvas');
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-
-      function draw() {
-        const ctx = canvas.getContext('2d');
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      }
-
-      draw();
-      // Second draw after brief delay ensures custom font has rendered
-      setTimeout(function() {
-        draw();
-        URL.revokeObjectURL(url);
-        resolve({ canvas: canvas, w: w, h: h, dpr: dpr });
-      }, 250);
-    };
-    img.onerror = function() {
-      URL.revokeObjectURL(url);
-      reject(new Error('SVG image render failed'));
-    };
-    img.src = url;
+  const v = await window.canvg.Canvg.fromString(ctx, svgStr, {
+    ignoreDimensions: false,
+    scaleWidth: canvas.width,
+    scaleHeight: canvas.height,
   });
+  await v.render();
+
+  return { canvas, w, h };
+}
+
+// Re-render the tree in the requested language without disturbing app state,
+// capture, then restore the on-screen language.
+async function _withExportLang(lang, fn) {
+  const state = window.__state;
+  const needSwap = state && lang !== state.lang && typeof renderTree === 'function';
+  if (needSwap) renderTree({ ...state, lang });
+  try {
+    return await fn();
+  } finally {
+    if (needSwap) renderTree(state);
+  }
 }
 
 async function doExport(opts) {
-  const format = opts.format || 'png';
-  const lang = opts.lang || 'en';
+  const format = (opts && opts.format) || 'png';
+  const lang = (opts && opts.lang) || 'en';
 
   try {
-    const fontB64 = await _getFontB64();
-    const clone = _buildSvgClone(lang);
-    if (!clone) return;
-
-    _injectFont(clone, fontB64);
-    const { canvas, w, h, dpr } = await _svgToCanvas(clone);
-
-    const title = (window.__state && window.__state.tree && window.__state.tree.title_en)
-      || 'Vanshavali';
-    const today = new Date().toLocaleDateString('en-IN', {
-      year: 'numeric', month: 'long', day: 'numeric',
+    const { canvas, w, h } = await _withExportLang(lang, async () => {
+      const clone = _buildExportClone();
+      if (!clone) throw new Error('Nothing to export');
+      return _rasterize(clone);
     });
+
+    const title = (window.__state && window.__state.tree && window.__state.tree.title_en) || 'Vanshavali';
+    const today = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
 
     if (format === 'pdf') {
       const jsPDF = window.jspdf && window.jspdf.jsPDF;
-      if (!jsPDF) {
-        alert('PDF library not loaded. Please check your internet connection and try again.');
-        return;
-      }
+      if (!jsPDF) throw new Error('PDF library not loaded');
 
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
       const pageW = doc.internal.pageSize.getWidth();
@@ -130,12 +99,10 @@ async function doExport(opts) {
       const headerH = 20;
       const footerH = 12;
 
-      // Title block
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.text(title, pageW / 2, 14, { align: 'center' });
 
-      // Tree image centred in available space
       const availW = pageW - margin * 2;
       const availH = pageH - headerH - footerH;
       const ratio = Math.min(availW / w, availH / h);
@@ -146,26 +113,28 @@ async function doExport(opts) {
 
       doc.addImage(canvas.toDataURL('image/png'), 'PNG', imgX, imgY, imgW, imgH);
 
-      // Info box bottom-left
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.text(title + '  \xB7  Exported ' + today, margin, pageH - 6);
 
       doc.save('vanshavali.pdf');
     } else {
-      canvas.toBlob(function(blob) {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'vanshavali.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
-      }, 'image/png');
+      await new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          if (!blob) { resolve(); return; }
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'vanshavali.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => { URL.revokeObjectURL(a.href); resolve(); }, 1000);
+        }, 'image/png');
+      });
     }
   } catch (err) {
-    console.error('Export failed:', err.message);
-    alert('Export failed: ' + err.message);
+    console.error('Export failed:', err);
+    alert('Export failed: ' + (err && err.message ? err.message : 'Unknown error'));
   }
 }
 

@@ -46,6 +46,32 @@ matching the layout and style of `docs/vanshavali.pdf` and `docs/sample.png`.
 - [ ] A `npm run seed` script loads `docs/seed.json` into PostgreSQL
 - [ ] This is a one-time developer operation; no import UI in the app
 
+## [AMENDED] Pivot Round 2 (feedback 2026-06-01)
+
+The following supersede/extend the DoD above:
+
+### Tree Canvas
+- [AMENDED] Header title is **language-aware**: EN mode shows `title_en`, HI mode shows `title_hi` (was: hardcoded Hindi).
+- [AMENDED] **Compact top-down** packing: tighter gaps + denser leaf wrapping to fit more per screen (no reorientation).
+- [ADDED] Subtle **generation differentiation** (faint per-depth banding; thicker border on the patriarch node).
+- [ADDED] Toggleable **minimap** for navigating large trees.
+
+### Node Interaction
+- [AMENDED] Names **never truncate**: dynamic node width + 2-line wrapping (was: ellipsis clamp at ~22 chars).
+- [ADDED] Each card shows an inline **edit (pencil) icon** and an **"+" add-child** affordance (hover/focus; always-on where hover absent).
+- [ADDED] Toolbar **Add** form includes a **Parent dropdown** (pick any parent, or none = root).
+- [ADDED] Visible **help hint** documenting mouse controls (pan/zoom/right-click/edit/add).
+
+### Person / Spouse representation
+- [AMENDED] Spouse rendered as a **paired couple box** beside the person, joined by a marriage connector — no "w./h." prefix (resolves husband mislabel).
+- [AMENDED] Each box shows the person's own **birth/death year below the name**.
+- [ADDED] Spouse gets its **own** `spouse_birth_year`, `spouse_death_year`, `spouse_gender`.
+- [AMENDED] Spouse box colored by gender with **AA contrast** (was: low-contrast red text).
+
+### Export
+- [AMENDED] Export reliability fix: **self-hosted** jsPDF (+ canvg) instead of CDN; **canvg**-based SVG→canvas so embedded Devanagari font renders (was: fragile SVG-as-`<img>` + double-draw).
+- [AMENDED] Export options shown as a **popover anchored to the Export button** (was: centered/left modal dialog).
+
 ## Decisions & Options
 
 | Decision | Chosen Option | Alternatives Considered | Rationale |
@@ -80,6 +106,9 @@ person
   death_year    INTEGER
   spouse_en     TEXT
   spouse_hi     TEXT
+  spouse_birth_year   INTEGER   -- [AMENDED] added Pivot R2
+  spouse_death_year   INTEGER   -- [AMENDED] added Pivot R2
+  spouse_gender       TEXT      -- [AMENDED] added Pivot R2: 'M' | 'F' | 'other'
   gender        TEXT       -- 'M' | 'F' | 'other'
   notes         TEXT
   x_pos         FLOAT      -- persisted layout hint

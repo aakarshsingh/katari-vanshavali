@@ -14,6 +14,16 @@ operation (Step 0): `scripts/seed-pdf.js` calls Claude Vision on the existing
 `docs/vanshavali.pdf`, writes `docs/seed.json`, and `npm run seed` loads it into
 the DB before first deploy.
 
+## [AMENDED] Pivot Round 2 — Architectural Notes (2026-06-01)
+
+- **Layout engine** (`tree-layout.js`): now computes **per-node width** from measured text (memoized text-measure util) and a **couple-unit footprint** (person + spouse box + marriage gap). `computeGroupedLayout` consumes variable widths; compactness via tuned constants. Layout tests extended for variable width + couple footprint + no-overlap.
+- **Renderer** (`tree-render.js`): paired couple boxes + marriage connector; birth/death below each name; generation banding + patriarch border; orthogonal ancestor connector; per-node hover affordances (edit pencil + add-child "+"). Export clone strips affordance elements.
+- **Export** (`export.js`): switch from SVG→`<img>`→canvas (fonts don't load in `<img>`) to **canvg** rasterization honoring `document.fonts`; **self-host** jsPDF + canvg under `public/vendor/` (removes CDN failure mode). `await document.fonts.ready` before raster; cap dpr to browser canvas limits.
+- **New module** `public/js/minimap.js`: scaled overview + draggable viewport rect; reuses `canvas.js` scale state.
+- **Title i18n**: header reads `title_en`/`title_hi` by `state.lang`; `tree.js` PATCH accepts `title_hi`.
+- **Schema**: `person` gains `spouse_birth_year`, `spouse_death_year`, `spouse_gender` (idempotent `ADD COLUMN IF NOT EXISTS`).
+- **Export popover**: replace modal `<dialog>` with button-anchored popover.
+
 ## Module Breakdown
 
 | Module/Component | Responsibility | New or Modified |

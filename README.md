@@ -4,12 +4,14 @@ A traditional Indian genealogical tree builder. Create, edit, and export your fa
 
 ## Features
 
-- **Bilingual** — every person stores an English name and a Hindi (Devanagari) name; toggle the display language live
+- **Bilingual** — every person stores an English name and a Hindi (Devanagari) name; the canvas *and* the title toggle language live
 - **Transliteration chips** — type an English name and get 3–5 AI-generated Devanagari options to click into the Hindi field
-- **SVG tree renderer** — top-down Reingold-Tilford layout; decorative double border; colour-coded nodes (cream for male, deep red for female)
-- **Pan / zoom** — drag to pan, scroll-wheel or toolbar buttons to zoom, Fit button to reset
-- **Full CRUD** — right-click any node to add a child, edit, or delete; background click to add a root ancestor
-- **Export** — PNG (2× pixel ratio, crisp) or PDF (A3 landscape, title block, info line) in either language
+- **Couple cards** — fill a person's Spouse field and the card automatically becomes a paired couple (two boxes joined by a marriage connector), each with its own birth/death year and gender colour. Leave Spouse blank for a single card.
+- **SVG tree renderer** — compact top-down grouped layout; **dynamic node widths with 2-line name wrapping** (no truncation); subtle generation banding; a heavier border on the patriarch; decorative double border
+- **On-card actions** — hover a card for an **edit (✎)** icon and an **add-child (+)** button; right-click for the full menu (add / edit / delete)
+- **Pan / zoom / navigate** — scroll to pan, **Ctrl+scroll** (or toolbar buttons) to zoom, Fit to reset, and a toggleable **minimap** for large trees
+- **Discoverable controls** — a **?** help button in the toolbar lists every interaction
+- **Export** — reliable PNG or PDF (A3 landscape) in either language, rendered with **canvg** so the Devanagari font always embeds correctly. jsPDF and canvg are self-hosted (no CDN dependency)
 
 ## Stack
 
@@ -20,7 +22,7 @@ A traditional Indian genealogical tree builder. Create, edit, and export your fa
 | AI | Claude API (`@anthropic-ai/sdk`) — transliteration + PDF extraction |
 | Frontend | Vanilla JS + SVG (no framework, no bundler) |
 | Icons | Lucide (CDN) |
-| PDF export | jsPDF 2.5.1 (CDN) |
+| Export | jsPDF 2.5.1 + canvg 3.0.10 (self-hosted under `public/vendor/`) |
 | Fonts | Noto Sans Devanagari (self-hosted woff2) |
 | Deploy | Railway |
 
@@ -147,16 +149,19 @@ Visit the app URL in a browser — the family tree should render immediately.
 │   │   ├── main.css           # Layout, toolbar, SVG node styles
 │   │   └── sidebar.css        # Sidebar form, chip styles
 │   ├── fonts/                 # Noto Sans Devanagari woff2 (self-hosted)
+│   ├── vendor/                # Self-hosted jsPDF + canvg (export libs)
 │   └── js/
 │       ├── api.js             # Fetch wrappers for all backend routes
-│       ├── main.js            # State store, init, lang toggle, title edit
-│       ├── tree-layout.js     # Reingold-Tilford layout algorithm
-│       ├── tree-render.js     # SVG renderer (nodes, edges, border)
+│       ├── main.js            # State store, init, lang toggle, title edit, help
+│       ├── node-metrics.js    # Text measurement, wrapping, couple card sizing
+│       ├── tree-layout.js     # Grouped compact layout (per-node widths)
+│       ├── tree-render.js     # SVG renderer (couple cards, edges, bands, border)
 │       ├── canvas.js          # Pan / zoom / drag interactions
+│       ├── minimap.js         # Toggleable overview + draggable viewport rect
 │       ├── transliterate.js   # Chip UI — debounce, cache, chip buttons
-│       ├── sidebar.js         # Add / edit person form
+│       ├── sidebar.js         # Add / edit person form (parent dropdown, spouse)
 │       ├── context-menu.js    # Right-click context menu
-│       └── export.js          # PNG and PDF export
+│       └── export.js          # PNG and PDF export via canvg
 ├── tests/
 │   ├── tree-layout.test.js    # Layout algorithm unit tests
 │   └── api.test.js            # API smoke tests (mocked DB)
@@ -172,7 +177,8 @@ Visit the app URL in a browser — the family tree should render immediately.
 ```sql
 tree         (id, title_en, title_hi, created_at, updated_at)
 person       (id, tree_id, name_en, name_hi, birth_year, death_year,
-              spouse_en, spouse_hi, gender, notes, x_pos, y_pos)
+              spouse_en, spouse_hi, spouse_birth_year, spouse_death_year,
+              spouse_gender, gender, notes, x_pos, y_pos)
 relationship (id, tree_id, parent_id, child_id)
 ```
 
@@ -182,12 +188,15 @@ All IDs are UUIDs. A single tree row owns all persons and relationships; cascadi
 
 | Action | How |
 |--------|-----|
-| Add root ancestor | Click empty canvas area |
-| Add child | Right-click a node → Add Child |
-| Edit person | Right-click → Edit, or click the node |
+| Add anyone | **Add** button in toolbar → pick a parent from the dropdown (or *none* for a root) |
+| Add child quickly | Hover a card → **+**, or right-click → Add Child |
+| Make a couple | Edit a person and fill the **Spouse** field (name + optional birth/death/gender) |
+| Edit person | Click a card, hover → **✎**, or right-click → Edit |
 | Delete person | Right-click → Delete (confirmed) |
-| Switch language | EN / HI toggle in toolbar |
-| Export | Export button → choose PNG or PDF + language |
-| Zoom | Toolbar buttons or scroll wheel |
-| Pan | Drag on empty canvas |
+| Switch language | EN / HI toggle in toolbar (canvas + title) |
+| Export | Export button (opens a popover beside it) → PNG or PDF + language |
+| Pan | Scroll, or drag on empty canvas |
+| Zoom | **Ctrl + scroll**, or toolbar zoom buttons; Fit to reset |
+| Minimap | Toggle the map button in the toolbar |
+| See all controls | **?** help button in the toolbar |
 | Edit title | Click the title text in the toolbar |

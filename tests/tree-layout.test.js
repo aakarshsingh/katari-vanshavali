@@ -1,4 +1,4 @@
-const { computeLayout } = require('../public/js/tree-layout');
+const { computeLayout, computeGroupedLayout } = require('../public/js/tree-layout');
 
 describe('computeLayout', () => {
   test('single node returns position at x:0, y:0', () => {
@@ -48,5 +48,53 @@ describe('computeLayout', () => {
       const leftEdge = children[i + 1].x;
       expect(leftEdge).toBeGreaterThanOrEqual(rightEdge);
     }
+  });
+});
+
+describe('computeGroupedLayout (variable width + couples)', () => {
+  // Focal F with 3 children; child "a" is a couple with two children.
+  const persons = [
+    { id: 'F' }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'a1' }, { id: 'a2' },
+  ];
+  const rels = [
+    ['F', 'a'], ['F', 'b'], ['F', 'c'], ['a', 'a1'], ['a', 'a2'],
+  ].map(([p, c]) => ({ parent_id: p, child_id: c }));
+  // Wide widths simulate couple units / long names.
+  const widthOf = { F: 280, a: 330, b: 350, c: 168, a1: 294, a2: 294 };
+
+  test('per-node widths from widthOf are reflected in output', () => {
+    const layout = computeGroupedLayout(persons, rels, 'F', widthOf);
+    const by = Object.fromEntries(layout.map(n => [n.id, n]));
+    expect(by.a.width).toBe(330);
+    expect(by.F.width).toBe(280);
+  });
+
+  test('no horizontal overlap among top-level groups with varying widths', () => {
+    const layout = computeGroupedLayout(persons, rels, 'F', widthOf);
+    const by = Object.fromEntries(layout.map(n => [n.id, n]));
+    const sibs = ['a', 'b', 'c'].map(id => by[id]).sort((x, y) => x.x - y.x);
+    for (let i = 0; i < sibs.length - 1; i++) {
+      expect(sibs[i].x + sibs[i].width).toBeLessThanOrEqual(sibs[i + 1].x + 0.001);
+    }
+  });
+
+  test('no overlap among wrapped grandchildren', () => {
+    const layout = computeGroupedLayout(persons, rels, 'F', widthOf);
+    const by = Object.fromEntries(layout.map(n => [n.id, n]));
+    const kids = ['a1', 'a2'].map(id => by[id]).sort((x, y) => x.x - y.x);
+    expect(kids[0].x + kids[0].width).toBeLessThanOrEqual(kids[1].x + 0.001);
+  });
+
+  test('children sit below their parent generation', () => {
+    const layout = computeGroupedLayout(persons, rels, 'F', widthOf);
+    const by = Object.fromEntries(layout.map(n => [n.id, n]));
+    expect(by.a.y).toBeGreaterThan(by.F.y);
+    expect(by.a1.y).toBeGreaterThan(by.a.y);
+  });
+
+  test('all nodes share a uniform height (clean generation rows)', () => {
+    const layout = computeGroupedLayout(persons, rels, 'F', widthOf);
+    const heights = new Set(layout.map(n => n.height));
+    expect(heights.size).toBe(1);
   });
 });

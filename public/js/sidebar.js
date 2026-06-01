@@ -13,7 +13,11 @@ function getSidebarEls() {
     death: document.getElementById('f-death'),
     spouseEn: document.getElementById('f-spouse-en'),
     spouseHi: document.getElementById('f-spouse-hi'),
+    spouseBirth: document.getElementById('f-spouse-birth'),
+    spouseDeath: document.getElementById('f-spouse-death'),
     notes: document.getElementById('f-notes'),
+    parent: document.getElementById('f-parent'),
+    parentGroup: document.getElementById('parent-group'),
     btnSave: document.getElementById('btn-save'),
     btnDelete: document.getElementById('btn-delete'),
     btnClose: document.getElementById('sidebar-close'),
@@ -35,6 +39,7 @@ function clearError(el) {
 
 function collectForm(els) {
   const genderEl = els.form.querySelector('[name="gender"]:checked');
+  const spouseGenderEl = els.form.querySelector('[name="spouse_gender"]:checked');
   return {
     name_en: els.nameEn.value.trim(),
     name_hi: els.nameHi.value.trim() || null,
@@ -42,6 +47,9 @@ function collectForm(els) {
     death_year: els.death.value ? parseInt(els.death.value, 10) : null,
     spouse_en: els.spouseEn.value.trim() || null,
     spouse_hi: els.spouseHi.value.trim() || null,
+    spouse_birth_year: els.spouseBirth.value ? parseInt(els.spouseBirth.value, 10) : null,
+    spouse_death_year: els.spouseDeath.value ? parseInt(els.spouseDeath.value, 10) : null,
+    spouse_gender: spouseGenderEl ? spouseGenderEl.value : null,
     gender: genderEl ? genderEl.value : 'M',
     notes: els.notes.value.trim() || null,
   };
@@ -54,9 +62,15 @@ function populateForm(els, person) {
   els.death.value = person.death_year != null ? person.death_year : '';
   els.spouseEn.value = person.spouse_en || '';
   els.spouseHi.value = person.spouse_hi || '';
+  els.spouseBirth.value = person.spouse_birth_year != null ? person.spouse_birth_year : '';
+  els.spouseDeath.value = person.spouse_death_year != null ? person.spouse_death_year : '';
   els.notes.value = person.notes || '';
   const genderRadio = els.form.querySelector(`[name="gender"][value="${person.gender || 'M'}"]`);
   if (genderRadio) genderRadio.checked = true;
+  const spouseGenderRadio = person.spouse_gender
+    ? els.form.querySelector(`[name="spouse_gender"][value="${person.spouse_gender}"]`)
+    : null;
+  if (spouseGenderRadio) spouseGenderRadio.checked = true;
 }
 
 function resetForm(els) {
@@ -82,28 +96,33 @@ function closeSidebar() {
   sidebarPersonId = null;
 }
 
+// Populate the Parent <select> from current state; preselect selectedId.
+function populateParentOptions(els, selectedId) {
+  if (!els.parent) return;
+  const state = window.__state;
+  const persons = (state && state.persons) || [];
+  const opts = ['<option value="">— none (root) —</option>'];
+  for (const p of persons) {
+    const sel = p.id === selectedId ? ' selected' : '';
+    const label = (p.name_en || '(unnamed)').replace(/[<>&]/g, (c) =>
+      ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    opts.push(`<option value="${p.id}"${sel}>${label}</option>`);
+  }
+  els.parent.innerHTML = opts.join('');
+}
+
 function openNew(parentId) {
   const els = getSidebarEls();
   if (!els.sidebar) return;
-
-  if (parentId === null || parentId === undefined) {
-    const state = window.__state;
-    if (state && state.persons && state.persons.length > 0) {
-      showError(els.error, 'Tree already has a root. Use "Add Child" on an existing node.');
-      openSidebar(els);
-      els.btnDelete.hidden = true;
-      els.title.textContent = 'Add Person';
-      resetForm(els);
-      return;
-    }
-  }
 
   sidebarMode = 'new';
   sidebarParentId = parentId || null;
   sidebarPersonId = null;
 
   resetForm(els);
-  els.title.textContent = parentId ? 'Add Child' : 'Add Root Person';
+  populateParentOptions(els, parentId || '');
+  if (els.parentGroup) els.parentGroup.hidden = false;
+  els.title.textContent = parentId ? 'Add Child' : 'Add Person';
   els.btnDelete.hidden = true;
   openSidebar(els);
 }
@@ -121,6 +140,7 @@ function openEdit(personId) {
   sidebarPersonId = personId;
 
   resetForm(els);
+  if (els.parentGroup) els.parentGroup.hidden = true;
   els.title.textContent = 'Edit Person';
   els.btnDelete.hidden = false;
   const btnAddChild = document.getElementById('btn-add-child');
@@ -140,6 +160,13 @@ async function handleSubmit(e) {
     return;
   }
 
+  const selectedParent = (els.parent && els.parent.value) || null;
+  const hasNodes = window.__state.persons && window.__state.persons.length > 0;
+  if (sidebarMode === 'new' && !selectedParent && hasNodes) {
+    showError(els.error, 'Select a parent — the tree already has a root.');
+    return;
+  }
+
   els.btnSave.disabled = true;
   try {
     if (sidebarMode === 'new') {
@@ -147,8 +174,8 @@ async function handleSubmit(e) {
       const newPersons = [...window.__state.persons, person];
       let newRelationships = window.__state.relationships;
 
-      if (sidebarParentId) {
-        const relationship = await api.createRelationship(sidebarParentId, person.id);
+      if (selectedParent) {
+        const relationship = await api.createRelationship(selectedParent, person.id);
         newRelationships = [...newRelationships, relationship];
       }
 
