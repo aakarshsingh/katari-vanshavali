@@ -1,0 +1,620 @@
+{
+  "title_en": "Genealogy",
+  "title_hi": "वंशावली",
+  "persons": [
+    {
+      "id": "p1",
+      "name_en": "Bhukhi Singh",
+      "name_hi": "भुखी सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p2",
+      "name_en": "Jeevlal Singh",
+      "name_hi": "जीवलाल सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p3",
+      "name_en": "Boudh Singh",
+      "name_hi": "बौध सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p4",
+      "name_en": "Shakun Singh",
+      "name_hi": "शकुन सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p5",
+      "name_en": "Gopal Singh",
+      "name_hi": "गोपाल सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p6",
+      "name_en": "Rameshwar Singh",
+      "name_hi": "रामेश्वर सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p7",
+      "name_en": "Bade Lal Singh",
+      "name_hi": "बड़े लाल सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Chandrika Devi",
+      "spouse_hi": "चंद्रिका देवी",
+      "gender": "M"
+    },
+    {
+      "id": "p8",
+      "name_en": "Dr. Vijay Kumar Singh",
+      "name_hi": "डॉ० विजय कुमार सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Draupadi Devi",
+      "spouse_hi": "द्रौपदी देवी",
+      "gender": "M"
+    },
+    {
+      "id": "p9",
+      "name_en": "Dharmsheela Roy",
+      "name_hi": "धर्मशीला रॉय",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Major General Bimal Chandra Roy",
+      "spouse_hi": "मेजर जनरल बिमल चंद्र रॉय",
+      "gender": "F"
+    },
+    {
+      "id": "p10",
+      "name_en": "Rudrani Singh",
+      "name_hi": "रुद्राणी सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Arun Kumar Singh",
+      "spouse_hi": "अरुण कुमार सिंह",
+      "gender": "F"
+    },
+    {
+      "id": "p11",
+      "name_en": "Runni Singh",
+      "name_hi": "रुन्नी सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Ajay Kumar Singh",
+      "spouse_hi": "अजय कुमार सिंह",
+      "gender": "F"
+    },
+    {
+      "id": "p12",
+      "name_en": "Dr. Harishankar Kumar Pankaj",
+      "name_hi": "डॉ० हरिशंकर कुमार पंकज",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Dr. Gurpreet Singh",
+      "spouse_hi": "डॉ० गुरप्रीत सिंह",
+      "gender": "M"
+    },
+    {
+      "id": "p13",
+      "name_en": "Anshu",
+      "name_hi": "अंशु",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p14",
+      "name_en": "Anku",
+      "name_hi": "अंकु",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p15",
+      "name_en": "Keshav",
+      "name_hi": "केशव",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p16",
+      "name_en": "Chhavi",
+      "name_hi": "छवि",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p17",
+      "name_en": "Ruhi",
+      "name_hi": "रुही",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p18",
+      "name_en": "Juhi",
+      "name_hi": "जूही",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p19",
+      "name_en": "Anuradha Roy",
+      "name_hi": "अनुराधा रॉय",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p20",
+      "name_en": "Alka Roy",
+      "name_hi": "अलका रॉय",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Liyo Chan",
+      "spouse_hi": "लियो चान",
+      "gender": "F"
+    },
+    {
+      "id": "p21",
+      "name_en": "Dr. Archana Roy",
+      "name_hi": "डॉ० अर्चना रॉय",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Dr. Sajeev Chandran",
+      "spouse_hi": "डॉ० सजीव चन्द्रन",
+      "gender": "F"
+    },
+    {
+      "id": "p22",
+      "name_en": "Aariya",
+      "name_hi": "आरिया",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p23",
+      "name_en": "Pulkit Sajeev",
+      "name_hi": "पुलकित सजीव",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p24",
+      "name_en": "Ram Naresh Prasad Singh",
+      "name_hi": "राम नरेश प्रसाद सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Brinda Singh",
+      "spouse_hi": "बृंदा सिंह",
+      "gender": "M"
+    },
+    {
+      "id": "p25",
+      "name_en": "Suresh Prasad Singh",
+      "name_hi": "सुरेश प्रसाद सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Indu Singh",
+      "spouse_hi": "इंदु सिंह",
+      "gender": "M"
+    },
+    {
+      "id": "p26",
+      "name_en": "Dinesh Prasad Singh",
+      "name_hi": "दिनेश प्रसाद सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Namita Dinesh",
+      "spouse_hi": "नमिता दिनेश",
+      "gender": "M"
+    },
+    {
+      "id": "p27",
+      "name_en": "Dr. Umesh Prasad Singh",
+      "name_hi": "डॉ० उमेश प्रसाद सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Meera Singh",
+      "spouse_hi": "मीरा सिंह",
+      "gender": "M"
+    },
+    {
+      "id": "p28",
+      "name_en": "Rajesh Kumar",
+      "name_hi": "राजेश कुमार",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Vineeta Singh",
+      "spouse_hi": "विनीता सिंह",
+      "gender": "M"
+    },
+    {
+      "id": "p29",
+      "name_en": "Rajani Sinha",
+      "name_hi": "रजनी सिन्हा",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Rakesh Kumar Sinha",
+      "spouse_hi": "राकेश कुमार सिन्हा",
+      "gender": "F"
+    },
+    {
+      "id": "p30",
+      "name_en": "Sanjeev Kumar",
+      "name_hi": "संजीव कुमार",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p31",
+      "name_en": "Col. Rajeev Kumar",
+      "name_hi": "कर्नल राजीव कुमार",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Sapna Singh",
+      "spouse_hi": "सपना सिंह",
+      "gender": "M"
+    },
+    {
+      "id": "p32",
+      "name_en": "Pooja Singh",
+      "name_hi": "पूजा सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p33",
+      "name_en": "Aarti Singh",
+      "name_hi": "आरती सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p34",
+      "name_en": "Mrinal Govind",
+      "name_hi": "मृणाल गोविंद",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Mallika Ray",
+      "spouse_hi": "मल्लिका राय",
+      "gender": "M"
+    },
+    {
+      "id": "p35",
+      "name_en": "Meenakshi Singh",
+      "name_hi": "मीनाक्षी सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Dr. Gurukrit Singh",
+      "spouse_hi": "डॉ० गुरुकृत सिंह",
+      "gender": "F"
+    },
+    {
+      "id": "p36",
+      "name_en": "Aakarsh Singh",
+      "name_hi": "आकर्ष सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": "Tanya Singh",
+      "spouse_hi": "तान्या सिंह",
+      "gender": "M"
+    },
+    {
+      "id": "p37",
+      "name_en": "Anushree",
+      "name_hi": "अनुश्री",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p38",
+      "name_en": "Akshita Sinha",
+      "name_hi": "अक्षिता सिन्हा",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p39",
+      "name_en": "Ishita Sinha",
+      "name_hi": "इशिता सिन्हा",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p40",
+      "name_en": "Ayushi Singh",
+      "name_hi": "आयुषी सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p41",
+      "name_en": "Aarju Singh",
+      "name_hi": "आरजू सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p42",
+      "name_en": "Meeran",
+      "name_hi": "मीरान",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "F"
+    },
+    {
+      "id": "p43",
+      "name_en": "Manav Singh",
+      "name_hi": "मानव सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    },
+    {
+      "id": "p44",
+      "name_en": "Dhruv Singh",
+      "name_hi": "ध्रुव सिंह",
+      "birth_year": null,
+      "death_year": null,
+      "spouse_en": null,
+      "spouse_hi": null,
+      "gender": "M"
+    }
+  ],
+  "relationships": [
+    {
+      "parent_id": "p1",
+      "child_id": "p2"
+    },
+    {
+      "parent_id": "p2",
+      "child_id": "p3"
+    },
+    {
+      "parent_id": "p3",
+      "child_id": "p4"
+    },
+    {
+      "parent_id": "p4",
+      "child_id": "p5"
+    },
+    {
+      "parent_id": "p5",
+      "child_id": "p6"
+    },
+    {
+      "parent_id": "p6",
+      "child_id": "p7"
+    },
+    {
+      "parent_id": "p7",
+      "child_id": "p8"
+    },
+    {
+      "parent_id": "p7",
+      "child_id": "p9"
+    },
+    {
+      "parent_id": "p7",
+      "child_id": "p24"
+    },
+    {
+      "parent_id": "p7",
+      "child_id": "p25"
+    },
+    {
+      "parent_id": "p7",
+      "child_id": "p26"
+    },
+    {
+      "parent_id": "p7",
+      "child_id": "p27"
+    },
+    {
+      "parent_id": "p8",
+      "child_id": "p10"
+    },
+    {
+      "parent_id": "p8",
+      "child_id": "p11"
+    },
+    {
+      "parent_id": "p8",
+      "child_id": "p12"
+    },
+    {
+      "parent_id": "p9",
+      "child_id": "p19"
+    },
+    {
+      "parent_id": "p9",
+      "child_id": "p20"
+    },
+    {
+      "parent_id": "p9",
+      "child_id": "p21"
+    },
+    {
+      "parent_id": "p10",
+      "child_id": "p13"
+    },
+    {
+      "parent_id": "p10",
+      "child_id": "p14"
+    },
+    {
+      "parent_id": "p11",
+      "child_id": "p15"
+    },
+    {
+      "parent_id": "p11",
+      "child_id": "p16"
+    },
+    {
+      "parent_id": "p12",
+      "child_id": "p17"
+    },
+    {
+      "parent_id": "p12",
+      "child_id": "p18"
+    },
+    {
+      "parent_id": "p20",
+      "child_id": "p22"
+    },
+    {
+      "parent_id": "p21",
+      "child_id": "p23"
+    },
+    {
+      "parent_id": "p24",
+      "child_id": "p28"
+    },
+    {
+      "parent_id": "p24",
+      "child_id": "p29"
+    },
+    {
+      "parent_id": "p25",
+      "child_id": "p30"
+    },
+    {
+      "parent_id": "p25",
+      "child_id": "p31"
+    },
+    {
+      "parent_id": "p26",
+      "child_id": "p32"
+    },
+    {
+      "parent_id": "p26",
+      "child_id": "p33"
+    },
+    {
+      "parent_id": "p27",
+      "child_id": "p34"
+    },
+    {
+      "parent_id": "p27",
+      "child_id": "p35"
+    },
+    {
+      "parent_id": "p28",
+      "child_id": "p36"
+    },
+    {
+      "parent_id": "p28",
+      "child_id": "p37"
+    },
+    {
+      "parent_id": "p29",
+      "child_id": "p38"
+    },
+    {
+      "parent_id": "p29",
+      "child_id": "p39"
+    },
+    {
+      "parent_id": "p31",
+      "child_id": "p40"
+    },
+    {
+      "parent_id": "p31",
+      "child_id": "p41"
+    },
+    {
+      "parent_id": "p34",
+      "child_id": "p42"
+    },
+    {
+      "parent_id": "p35",
+      "child_id": "p43"
+    },
+    {
+      "parent_id": "p35",
+      "child_id": "p44"
+    }
+  ]
+}

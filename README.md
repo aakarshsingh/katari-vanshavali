@@ -72,7 +72,7 @@ npm run seed:pdf   # reads docs/vanshavali.pdf → writes docs/seed.json
 npm run seed       # inserts seed.json into PostgreSQL
 ```
 
-`docs/seed.json` is gitignored (contains private family data). `docs/seed.json.example` shows the expected shape.
+`docs/seed.json` is committed and used for auto-seeding on first boot. `docs/seed.json.example` shows the expected shape if you want to replace it with your own data.
 
 ### Tests
 
@@ -109,18 +109,9 @@ PORT=3000
 
 ### 4. Deploy
 
-Click **Deploy**. The start command runs `npm run migrate && npm start`, which migrates the schema before the server starts. The health check at `/health` must return 200 for the deploy to be marked healthy.
+Click **Deploy**. The start command runs `npm run migrate && npm start`. On first boot the server auto-seeds the database from `docs/seed.json` if the database is empty — no manual shell step needed. The health check at `/health` must return 200 for the deploy to be marked healthy.
 
-### 5. Seed the database
-
-Open a shell in the Railway service (**Shell** tab in the dashboard) and run:
-
-```bash
-node scripts/seed-pdf.js   # requires ANTHROPIC_API_KEY and docs/vanshavali.pdf
-npm run seed
-```
-
-### 6. Verify
+### 5. Verify
 
 ```bash
 curl https://<your-railway-url>/health

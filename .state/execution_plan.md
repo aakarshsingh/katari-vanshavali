@@ -41,6 +41,7 @@ Fresh repo. `package.json` exists (bare init). `docs/vanshavali.pdf` and `docs/s
 | 14 | Export (PNG + PDF) | Completed |
 | 15 | Railway Deploy + Smoke Test | Pending |
 | 16 | README + Documentation | Completed |
+| 17 | Auto-seed on First Boot | Active |
 
 ---
 

@@ -5,14 +5,13 @@ const pool = require('./client');
 
 const SEED_PATH = path.join(__dirname, '../../docs/seed.json');
 
-async function run() {
+async function runSeed() {
   if (!fs.existsSync(SEED_PATH)) {
     throw new Error(`seed.json not found at ${SEED_PATH}. Run npm run seed:pdf first.`);
   }
 
   const data = JSON.parse(fs.readFileSync(SEED_PATH, 'utf8'));
 
-  // Use existing tree or insert one
   let tree_id;
   const existing = await pool.query('SELECT id FROM tree LIMIT 1');
   if (existing.rows.length === 0) {
@@ -29,13 +28,11 @@ async function run() {
     );
   }
 
-  // Map short IDs (p1, p2, ...) to real UUIDs
   const idMap = {};
   for (const p of data.persons) {
     idMap[p.id] = uuidv4();
   }
 
-  // Insert persons
   let personCount = 0;
   for (const p of data.persons) {
     await pool.query(
@@ -44,27 +41,22 @@ async function run() {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (id) DO NOTHING`,
       [
-        idMap[p.id],
-        tree_id,
-        p.name_en,
-        p.name_hi || null,
-        p.birth_year || null,
-        p.death_year || null,
-        p.spouse_en || null,
-        p.spouse_hi || null,
+        idMap[p.id], tree_id,
+        p.name_en, p.name_hi || null,
+        p.birth_year || null, p.death_year || null,
+        p.spouse_en || null, p.spouse_hi || null,
         p.gender || 'M',
       ]
     );
     personCount++;
   }
 
-  // Insert relationships using mapped UUIDs
   let relCount = 0;
   for (const r of data.relationships) {
     const parent_uuid = idMap[r.parent_id];
     const child_uuid = idMap[r.child_id];
     if (!parent_uuid || !child_uuid) {
-      console.warn(`Skipping relationship with unknown ID: ${r.parent_id} → ${r.child_id}`);
+      console.warn(`Skipping relationship: unknown ID ${r.parent_id} → ${r.child_id}`);
       continue;
     }
     await pool.query(
@@ -77,10 +69,17 @@ async function run() {
   }
 
   console.log(`Seed complete: ${personCount} persons, ${relCount} relationships inserted`);
-  await pool.end();
 }
 
-run().catch(err => {
-  console.error('seed.js failed:', err.message);
-  process.exit(1);
-});
+// CLI entrypoint: npm run seed
+if (require.main === module) {
+  runSeed()
+    .then(() => pool.end())
+    .catch(err => {
+      console.error('seed.js failed:', err.message);
+      pool.end();
+      process.exit(1);
+    });
+}
+
+module.exports = { runSeed };
