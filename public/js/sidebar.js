@@ -62,6 +62,8 @@ function populateForm(els, person) {
 function resetForm(els) {
   els.form.reset();
   clearError(els.error);
+  const btnAddChild = document.getElementById('btn-add-child');
+  if (btnAddChild) btnAddChild.hidden = true;
 }
 
 function openSidebar(els) {
@@ -121,6 +123,8 @@ function openEdit(personId) {
   resetForm(els);
   els.title.textContent = 'Edit Person';
   els.btnDelete.hidden = false;
+  const btnAddChild = document.getElementById('btn-add-child');
+  if (btnAddChild) btnAddChild.hidden = false;
   populateForm(els, person);
   openSidebar(els);
 }
@@ -139,18 +143,18 @@ async function handleSubmit(e) {
   els.btnSave.disabled = true;
   try {
     if (sidebarMode === 'new') {
-      const { person } = await api.createPerson({ ...data, tree_id: window.__state.tree.id });
+      const person = await api.createPerson({ ...data, tree_id: window.__state.tree.id });
       const newPersons = [...window.__state.persons, person];
       let newRelationships = window.__state.relationships;
 
       if (sidebarParentId) {
-        const { relationship } = await api.createRelationship(sidebarParentId, person.id);
+        const relationship = await api.createRelationship(sidebarParentId, person.id);
         newRelationships = [...newRelationships, relationship];
       }
 
       setState({ persons: newPersons, relationships: newRelationships });
     } else {
-      const { person } = await api.updatePerson(sidebarPersonId, data);
+      const person = await api.updatePerson(sidebarPersonId, data);
       const newPersons = window.__state.persons.map(p => p.id === person.id ? person : p);
       setState({ persons: newPersons });
     }
@@ -190,6 +194,16 @@ function initSidebar() {
   els.btnClose && els.btnClose.addEventListener('click', closeSidebar);
   els.form && els.form.addEventListener('submit', handleSubmit);
   els.btnDelete && els.btnDelete.addEventListener('click', handleDelete);
+
+  const btnAddChild = document.getElementById('btn-add-child');
+  btnAddChild && btnAddChild.addEventListener('click', () => {
+    const parentId = sidebarPersonId;
+    closeSidebar();
+    openNew(parentId);
+  });
+
+  const btnAddPerson = document.getElementById('btn-add-person');
+  btnAddPerson && btnAddPerson.addEventListener('click', () => openNew(null));
 
   // Phase 13 hook: wire transliterate chips if available
   if (typeof attachTransliterate === 'function') {

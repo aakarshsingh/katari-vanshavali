@@ -17,6 +17,12 @@ function _buildSvgClone(lang) {
   if (!svg) return null;
   const clone = svg.cloneNode(true);
 
+  // Strip canvas zoom transform so export renders at natural resolution
+  clone.style.transform = '';
+  clone.style.transformOrigin = '';
+  clone.style.width = '';
+  clone.style.height = '';
+
   // Remove hint text
   const hint = clone.querySelector('#empty-hint');
   if (hint) hint.remove();

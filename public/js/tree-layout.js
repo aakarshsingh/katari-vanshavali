@@ -181,7 +181,7 @@ function splitTree(persons, relationships, focalNameEn) {
 // Within each group, children are wrapped into rows of MAX_COLS and centered.
 
 const MAX_COLS   = 3;   // max siblings per row within a group
-const GROUP_GAP  = 72;  // horizontal gap between top-level groups
+const GROUP_GAP  = 48;  // horizontal gap between top-level groups
 
 // Recursively lays out a subtree rooted at nodeId.
 // Returns { positions:[{id,x,y}], width, height } — all coords relative to (0,0).

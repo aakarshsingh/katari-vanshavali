@@ -125,6 +125,7 @@ function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY
       'font-size': 11, fill: INK,
     });
     nameEl.textContent = name;
+    nameEl.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
     group.appendChild(nameEl);
 
     // Horizontal connector to next ancestor box
@@ -226,9 +227,10 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
       class: 'name-primary',
       x: cx, y: nameY,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': 13, 'font-weight': 'bold', fill: textColor,
+      'font-size': 14, 'font-weight': 'bold', fill: textColor,
     });
     nameEl.textContent = name;
+    nameEl.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
     g.appendChild(nameEl);
 
     if (hasSpouse) {
@@ -241,6 +243,7 @@ function renderNodes(svg, layout, personMap, lang, nodeW, nodeH, yOffset) {
         fill: isFemale ? '#e8a090' : TEXT_SPOUSE,
       });
       spouseEl.textContent = label + spouse;
+      spouseEl.setAttribute('font-family', "'Noto Sans Devanagari', Georgia, serif");
       g.appendChild(spouseEl);
     }
 
