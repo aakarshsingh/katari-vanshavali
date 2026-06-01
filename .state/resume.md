@@ -2,54 +2,55 @@
 
 ## Current State
 
-- **Last completed phase:** Phase 16 — README + Documentation
-- **Pending phase:** Phase 15 — Railway Deploy + Smoke Test (Active — awaiting live URL)
-- **All code committed and pushed:** `main` branch at `cc13f9e`
+- **Live URL:** https://katari-vanshavali-production.up.railway.app/
+- **Last commit:** `f250027` — fix: save error, font sizes, add-node UX, export transform bug
+- **Branch:** `main`
+- **All phases 0–17 completed.** UI pivot phases 9A–12A, 18 implemented and deployed.
 
-## What Was Done
+## What Was Done This Session
 
-Phases 0–14 and 16 are fully complete and committed. Phase 15 is Active — code is on GitHub, user is performing Railway setup manually.
+1. **Deployed to Railway** — fixed DATABASE_URL placeholder issue (Phase 15 ✓)
+2. **UI Pivot (phases 9A–18):**
+   - `splitTree()` separates ancestor chain from descendants
+   - Ancestor strip rendered horizontally above Bade Lal Singh with dotted connector
+   - `computeGroupedLayout()` — each son's family = compact group, children wrap in rows of 3, center-aligned
+   - Scroll = pan; Ctrl+scroll = zoom; background click no longer adds nodes
+   - Page loads centered on Bade Lal Singh
+3. **Spouse display** — red 12px labeled `पत्नी:` / `w.`, equal visual weight to name
+4. **Hindi fields readonly** — type English, chips auto-fill Hindi
+5. **Save bug fixed** — API returns raw objects, sidebar was destructuring `{ person }` (wrong)
+6. **Add node UX** — toolbar "+ Add" button + "Add Child" button inside edit sidebar
+7. **Export fix** — strip CSS `transform: scale()` from SVG clone before canvas render
+8. **Font** — 14px, explicit Noto Devanagari font-family on all SVG text elements
 
-## Railway Setup Steps (user is doing these now)
+## What Still Needs Testing (next session)
 
-1. railway.app → New Project → Deploy from GitHub → `aakarshsingh/katari-vanshavali`
-2. + New → Database → PostgreSQL (injects `DATABASE_URL` automatically)
-3. Service Variables: add `ANTHROPIC_API_KEY=sk-ant-...` and `PORT=3000`
-4. Deploy — start command is `npm run migrate && npm start` (from `railway.toml`)
-5. Shell tab: `node scripts/seed-pdf.js` then `npm run seed`
-6. Return with the live Railway URL for smoke-test verification
+- [ ] Edit a person → save → confirm no error
+- [ ] Add a child via sidebar "Add Child" button → confirm appears in tree
+- [ ] Add root via toolbar "+ Add" button
+- [ ] Hindi transliteration chips appear and fill readonly field
+- [ ] Export PNG → downloads and renders correctly
+- [ ] Export PDF → A3 landscape, tree visible
+- [ ] Lang toggle → tree re-renders in Hindi / English
+- [ ] Scroll pans; Ctrl+scroll zooms; zoom buttons work
+- [ ] Ancestor strip visible above Bade Lal Singh with dotted line
+- [ ] Layout: groups side-by-side, children in wrapped rows
 
-## What To Do On Resume
+## Known Issues / Things To Watch
 
-User will return with a Railway URL. Run smoke-test verification:
-
-```bash
-curl https://<railway-url>/health
-# expect: {"status":"ok"}
-
-curl https://<railway-url>/api/tree
-# expect: {"tree":{...},"persons":[...],"relationships":[...]}
-```
-
-Then ask user to confirm in browser:
-- Tree renders with seeded family data
-- Add a test person → reload → confirm it persists
-- Export PNG and PDF from the live URL
-
-Once all checks pass:
-- Mark Phase 15 **Completed** in `.state/execution_plan.md`
-- Tick all Self-Audit items
-- Fill Completion Record
-- Commit `.state/execution_plan.md`
+- Node text truncated at 22 chars — some long names show `…`. May need widening if user complains.
+- `focusPerson('Bade Lal Singh')` — depends on exact `name_en` match in seeded data. If name is slightly different in DB, fallback fires (fit-to-screen). Verify centering works.
+- Export: double-draw (250ms delay) needed for Devanagari — works in Chrome, may need testing in Safari.
 
 ## Read First On Resume
 
-1. `.state/execution_plan.md` — Phase 15 section (verification checklist)
+1. `.state/execution_plan.md` — Phase Summary table (bottom)
+2. `.state/conventions.md`
 
 ## Resume Prompt
 
-> I'm building a Vanshavali (Indian family tree) web tool. Phases 0–14 and 16 are
-> complete and committed. Phase 15 (Railway Deploy) is Active — I've just finished
-> the Railway setup. The live URL is https://<your-url>. Run `/as-p5-execute` to
-> complete Phase 15 by running smoke-test verification against that URL, then mark
-> it Completed in `.state/execution_plan.md`.
+> Vanshavali family tree app — live at https://katari-vanshavali-production.up.railway.app/
+> All phases 0–18 implemented and deployed. Resuming UI testing session.
+> Read `.state/resume.md` for full context on what was built and what still needs testing.
+> Start by asking the user to share a screenshot or describe what they're seeing, then
+> work through the testing checklist in resume.md.
