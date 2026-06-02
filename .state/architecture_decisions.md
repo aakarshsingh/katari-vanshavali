@@ -185,11 +185,24 @@ Server-side: no cache needed (stateless route).
 - **Verification:**
   - `tests/tree-layout.test.js` — unit tests for layout algorithm: single node,
     linear chain, wide siblings, deep nesting, no overlap assertion
+    - [ADDED] Pivot R4 — sibling order cases: all-numbered (by sequence),
+      mixed numbered/unnumbered (numbered first), birth-year tie-break
   - `tests/api.test.js` — Supertest integration against a test DB:
     create/read/update/delete for persons and relationships; transliterate route
     (mocked Claude response); tree title PATCH; seed loader
   - Coverage target: 80 % on `src/` and `public/js/tree-layout.js`
   - Browser rendering and export verified manually (no E2E framework for v1)
+
+## [ADDED] Pivot R4 — Sibling Ordering
+
+- **Single lever:** ordering is centralized in `buildAdjacency` (`tree-layout.js`),
+  which already feeds every layout path (`computeLayout`, `computeGroupedLayout`,
+  `splitTree`). Each child array is sorted there using a `personById` map.
+- **Comparator:** `effSeq = sequence ?? Infinity`, `effBirth = birth_year ?? Infinity`;
+  sort by `effSeq` asc, then `effBirth` asc, else `0` (stable → preserves DB order).
+  Result: numbered siblings first (in number order), unnumbered last (by birth year).
+- `tree-render.js`'s own `childrenOf` (collapse/descendant collection only) is left
+  unsorted — it does not affect drawn positions, which come solely from the layout.
 
 ## Risks & Open Questions
 

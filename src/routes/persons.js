@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/client');
-const { requireName, requireValidYear, requireUUID, requireGender } = require('../middleware/validate');
+const { requireName, requireValidYear, requireUUID, requireGender, requireValidSequence } = require('../middleware/validate');
 
 router.post(
   '/',
@@ -11,11 +11,12 @@ router.post(
   requireValidYear('spouse_birth_year'),
   requireValidYear('spouse_death_year'),
   requireGender('spouse_gender'),
+  requireValidSequence('sequence'),
   async (req, res) => {
     const {
       name_en, name_hi, birth_year, death_year, spouse_en, spouse_hi,
       spouse_birth_year, spouse_death_year, spouse_gender, gender, notes,
-      deceased, spouse_deceased,
+      deceased, spouse_deceased, sequence,
     } = req.body;
     try {
       const treeResult = await pool.query('SELECT id FROM tree LIMIT 1');
@@ -25,8 +26,8 @@ router.post(
         `INSERT INTO person
           (tree_id, name_en, name_hi, birth_year, death_year, spouse_en, spouse_hi,
            spouse_birth_year, spouse_death_year, spouse_gender, gender, notes,
-           deceased, spouse_deceased)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+           deceased, spouse_deceased, sequence)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
         [
           tree_id,
           name_en.trim(),
@@ -42,6 +43,7 @@ router.post(
           notes || null,
           deceased === true,
           spouse_deceased === true,
+          sequence || null,
         ]
       );
       res.status(201).json(result.rows[0]);
@@ -60,12 +62,13 @@ router.patch(
   requireValidYear('spouse_birth_year'),
   requireValidYear('spouse_death_year'),
   requireGender('spouse_gender'),
+  requireValidSequence('sequence'),
   async (req, res) => {
     const { id } = req.params;
     const allowed = [
       'name_en', 'name_hi', 'birth_year', 'death_year', 'spouse_en', 'spouse_hi',
       'spouse_birth_year', 'spouse_death_year', 'spouse_gender', 'gender', 'notes',
-      'deceased', 'spouse_deceased',
+      'deceased', 'spouse_deceased', 'sequence',
     ];
     const updates = [];
     const values = [];

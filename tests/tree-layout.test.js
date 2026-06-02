@@ -1,4 +1,11 @@
-const { computeLayout, computeGroupedLayout } = require('../public/js/tree-layout');
+const { computeLayout, computeGroupedLayout, compareSiblings } = require('../public/js/tree-layout');
+
+// Returns child ids ordered left-to-right (ascending x) under parent `pid`.
+function siblingOrder(persons, rels, pid) {
+  const layout = computeLayout(persons, rels);
+  const childIds = new Set(rels.filter(r => r.parent_id === pid).map(r => r.child_id));
+  return layout.filter(n => childIds.has(n.id)).sort((a, b) => a.x - b.x).map(n => n.id);
+}
 
 describe('computeLayout', () => {
   test('single node returns position at x:0, y:0', () => {
@@ -111,6 +118,61 @@ describe('computeGroupedLayout (variable width + couples)', () => {
     const layout = computeGroupedLayout(persons, rels, 'F', widthOf);
     const heights = new Set(layout.map(n => n.height));
     expect(heights.size).toBe(1);
+  });
+});
+
+describe('sibling ordering (Pivot R4)', () => {
+  test('compareSiblings: sequence ascending', () => {
+    expect(compareSiblings({ sequence: 1 }, { sequence: 2 })).toBeLessThan(0);
+    expect(compareSiblings({ sequence: 3 }, { sequence: 2 })).toBeGreaterThan(0);
+  });
+
+  test('compareSiblings: numbered sorts before unnumbered', () => {
+    expect(compareSiblings({ sequence: 9 }, {})).toBeLessThan(0);
+    expect(compareSiblings({}, { sequence: 1 })).toBeGreaterThan(0);
+  });
+
+  test('compareSiblings: equal/absent sequence falls back to birth_year', () => {
+    expect(compareSiblings({ birth_year: 1950 }, { birth_year: 1960 })).toBeLessThan(0);
+    expect(compareSiblings({ sequence: 2, birth_year: 1980 }, { sequence: 2, birth_year: 1970 }))
+      .toBeGreaterThan(0);
+    expect(compareSiblings({}, {})).toBe(0);
+  });
+
+  test('all-numbered siblings render in sequence order regardless of DB order', () => {
+    const persons = [
+      { id: 'p' },
+      { id: 'c1', sequence: 3 },
+      { id: 'c2', sequence: 1 },
+      { id: 'c3', sequence: 2 },
+    ];
+    const rels = ['c1', 'c2', 'c3'].map(c => ({ parent_id: 'p', child_id: c }));
+    expect(siblingOrder(persons, rels, 'p')).toEqual(['c2', 'c3', 'c1']);
+  });
+
+  test('numbered siblings come before unnumbered ones', () => {
+    const persons = [
+      { id: 'p' },
+      { id: 'u1' },
+      { id: 'n2', sequence: 2 },
+      { id: 'n1', sequence: 1 },
+      { id: 'u2' },
+    ];
+    const rels = ['u1', 'n2', 'n1', 'u2'].map(c => ({ parent_id: 'p', child_id: c }));
+    const order = siblingOrder(persons, rels, 'p');
+    expect(order.slice(0, 2)).toEqual(['n1', 'n2']);
+    expect(new Set(order.slice(2))).toEqual(new Set(['u1', 'u2']));
+  });
+
+  test('birth_year breaks ties when no sequence', () => {
+    const persons = [
+      { id: 'p' },
+      { id: 'b', birth_year: 1975 },
+      { id: 'a', birth_year: 1950 },
+      { id: 'c', birth_year: 1990 },
+    ];
+    const rels = ['b', 'a', 'c'].map(c => ({ parent_id: 'p', child_id: c }));
+    expect(siblingOrder(persons, rels, 'p')).toEqual(['a', 'b', 'c']);
   });
 });
 

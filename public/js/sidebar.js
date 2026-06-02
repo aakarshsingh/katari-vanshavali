@@ -30,6 +30,7 @@ function getSidebarEls() {
     nameHi: document.getElementById('f-name-hi'),
     birth: document.getElementById('f-birth'),
     death: document.getElementById('f-death'),
+    seq: document.getElementById('f-seq'),
     living: document.getElementById('f-living'),
     deathField: document.getElementById('death-field'),
     spouseEn: document.getElementById('f-spouse-en'),
@@ -94,6 +95,7 @@ function collectForm(els) {
     name_hi: els.nameHi.value.trim() || null,
     birth_year: els.birth.value ? parseInt(els.birth.value, 10) : null,
     death_year: deceased && els.death.value ? parseInt(els.death.value, 10) : null,
+    sequence: els.seq && els.seq.value ? parseInt(els.seq.value, 10) : null,
     deceased: deceased,
     spouse_en: married ? (els.spouseEn.value.trim() || null) : null,
     spouse_hi: married ? (els.spouseHi.value.trim() || null) : null,
@@ -111,6 +113,7 @@ function populateForm(els, person) {
   els.nameHi.value = person.name_hi || '';
   els.birth.value = person.birth_year != null ? person.birth_year : '';
   els.death.value = person.death_year != null ? person.death_year : '';
+  if (els.seq) els.seq.value = person.sequence != null ? person.sequence : '';
   els.spouseEn.value = person.spouse_en || '';
   els.spouseHi.value = person.spouse_hi || '';
   els.spouseBirth.value = person.spouse_birth_year != null ? person.spouse_birth_year : '';

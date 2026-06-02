@@ -62,6 +62,11 @@ Fresh repo. `package.json` exists (bare init). `docs/vanshavali.pdf` and `docs/s
 | R11 | Amend — Visible-interaction help hint | Completed |
 | R12 | New — Minimap (toggleable) | Completed |
 | R13 | Amend — README refresh + layout tests | Completed |
+| **— Pivot Round 4 (feedback 2026-06-02) — pending —** | | |
+| R4-1 | Schema + API: `sequence` column + validator + allow-list | Completed |
+| R4-2 | Form: move Living above Birth/Death; add Sequence input | Completed |
+| R4-3 | Sidebar: read/write `sequence` | Completed |
+| R4-4 | Sibling ordering in `buildAdjacency` + layout tests | Completed |
 
 ---
 
@@ -1800,3 +1805,188 @@ child packing = **2-row grid** per family.
 
 
 **Status:** Round 3 (T1–T12) implemented 2026-06-02; `npm test` 22/22. Committed locally, pending push/deploy. The migration from R0 still self-applies on deploy.
+
+---
+
+# Pivot Round 4 — Feedback 2026-06-02
+
+**Trigger:** Live feedback — (1) move the **Living** checkbox above Birth year;
+(2) add a **Sequence** number so siblings sort by birth year with a manual fallback.
+**Locked decisions (architect-approved):**
+- Sort rule: **sequence ascending, then birth_year ascending**; unnumbered siblings
+  sort after numbered ones; equal/absent keys keep stable DB order.
+- Form reorder applies to the **person section only** (spouse block unchanged).
+- `sequence` is a **person** attribute (spouses are part of the couple box, not ordered).
+- No drag/drop reordering UI — the number field is the only ordering control.
+
+**Order:** R4-1 (schema/API) -> R4-2 (form HTML) -> R4-3 (sidebar JS) -> R4-4 (layout + tests).
+Local verification = `npm test` only (no local Postgres; migration self-applies on deploy).
+
+### Phase R4-1: Schema + API — sequence column
+
+**Status:** Completed
+
+**Target Files:**
+- `src/db/migrate.js` — modify
+- `src/routes/persons.js` — modify
+- `src/middleware/validate.js` — modify
+
+**Changes:**
+- migrate.js: idempotent `ALTER TABLE person ADD COLUMN IF NOT EXISTS sequence INTEGER`
+  (place with the other additive R2 ALTERs).
+- validate.js: add `requireValidSequence(field)` — when present and not null, must be an
+  integer >= 1 (else 400 `sequence must be an integer >= 1`). Export it.
+- persons.js: add `sequence` to the POST INSERT column list + `$N` value (`sequence || null`);
+  add `sequence` to the PATCH `allowed` array; wire `requireValidSequence('sequence')` into
+  both POST and PATCH middleware chains.
+
+**Verification:**
+- [x] `npm test` green (api suite unaffected; INSERT/PATCH still succeed) — 26/26
+- [x] Manual read of migrate.js confirms ALTER is idempotent + additive
+
+**Definition of Done:**
+- [x] `sequence` accepted on create + patch; invalid (0, negative, non-int) rejected 400
+- [x] Column add is idempotent and runs inside existing migration flow
+
+**Self-Audit Checklist:**
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries (sequence validator)
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+- [x] Does not break other completed phases
+
+**Completion Record:**
+- `sequence INTEGER` added in migrate.js beside the R2 ALTERs (idempotent `IF NOT EXISTS`).
+- `requireValidSequence` rejects non-integer / `< 1`; allows null/undefined/empty (optional).
+- persons.js: POST INSERT now 15 cols (`sequence || null`); PATCH allow-list includes `sequence`; validator wired into both chains.
+- `npm test` → 26/26 pass. No DB-dependent step run locally (no Postgres); migration self-applies on Railway deploy.
+- No deviations from plan.
+
+### Phase R4-2: Form — reorder Living + add Sequence
+
+**Status:** Completed
+
+**Target Files:**
+- `public/index.html` — modify
+
+**Changes:**
+- Move the person `Living` checkbox `form-group` (currently below the Birth/Death row)
+  to sit immediately **above** that row. Spouse `Living` untouched.
+- Add a `Sequence` number input below the Birth/Death row:
+  `<input type="number" id="f-seq" name="sequence" min="1" />` with label + hint
+  "order among siblings (1, 2, 3…)".
+
+**Verification:**
+- [x] `npm test` green (render-smoke unaffected) — 32/32
+- [x] Manual: form order is Name(HI) -> Living -> Birth/Death -> Sequence -> Gender
+
+**Definition of Done:**
+- [x] Living checkbox renders above Birth year (person only)
+- [x] Sequence input present with correct id/min/hint
+
+**Self-Audit Checklist:**
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+- [x] Does not break other completed phases
+
+**Completion Record:**
+- Person `Living` group moved above the Birth/Death row; spouse block untouched.
+- Added `#f-seq` number input (`min="1"`) below Birth/Death with sibling-order hint.
+- Approved public-facing change (form layout) — matches Pivot R4 requirements.
+
+### Phase R4-3: Sidebar — read/write sequence
+
+**Status:** Completed
+
+**Target Files:**
+- `public/js/sidebar.js` — modify
+
+**Changes:**
+- `getSidebarEls`: add `seq: document.getElementById('f-seq')`.
+- `collectForm`: `sequence: els.seq && els.seq.value ? parseInt(els.seq.value, 10) : null`.
+- `populateForm`: `if (els.seq) els.seq.value = person.sequence != null ? person.sequence : ''`.
+- `resetForm` already clears via `form.reset()` — no change.
+
+**Verification:**
+- [x] `npm test` green — 32/32
+- [x] Manual: editing a person round-trips the sequence value (collect/populate symmetric)
+
+**Definition of Done:**
+- [x] Sequence persists on create/edit and repopulates on edit
+
+**Self-Audit Checklist:**
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+- [x] Does not break other completed phases
+
+**Completion Record:**
+- `getSidebarEls` exposes `seq` (#f-seq); `collectForm` emits `sequence` (int or null);
+  `populateForm` repopulates it. `resetForm` clears via `form.reset()` (no change needed).
+- No deviations from plan.
+
+### Phase R4-4: Sibling ordering + tests
+
+**Status:** Completed
+
+**Target Files:**
+- `public/js/tree-layout.js` — modify
+- `tests/tree-layout.test.js` — modify
+
+**Changes:**
+- `buildAdjacency(persons, relationships)`: build a `personById` map; after populating
+  each `childrenOf[parent]` array, sort it with `compareSiblings(personById[a], personById[b])`.
+- Add pure `compareSiblings(a, b)`: `effSeq = seq ?? Infinity`, `effBirth = birth_year ?? Infinity`;
+  return `effSeq` diff, else `effBirth` diff, else `0` (stable).
+- Tests: all-numbered orders by sequence; mixed numbered/unnumbered puts numbered first;
+  equal/absent sequence falls back to birth_year ascending.
+
+**Verification:**
+- [x] `npm test` green incl. new sibling-order cases — 32/32 (was 26; +6)
+- [x] Existing layout/overlap tests still pass
+
+**Definition of Done:**
+- [x] Siblings ordered sequence-then-birthyear across all layout paths
+- [x] Stable for equal/absent keys (no reshuffle of existing data)
+
+**Self-Audit Checklist:**
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+- [x] Does not break other completed phases
+
+**Completion Record:**
+- `compareSiblings` (exported) sorts by `sequence ?? ∞` then `birth_year ?? ∞`, else 0;
+  `buildAdjacency` sorts every child array via a `personById` map — single lever for all
+  three layout paths. `tree-render.js` childrenOf intentionally left unsorted (no position impact).
+- 6 new tests: comparator (3) + render-order (3: all-numbered, numbered-before-unnumbered, birth-year tie).
+- No deviations from plan.
+

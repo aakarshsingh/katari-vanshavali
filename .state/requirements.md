@@ -72,6 +72,25 @@ The following supersede/extend the DoD above:
 - [AMENDED] Export reliability fix: **self-hosted** jsPDF (+ canvg) instead of CDN; **canvg**-based SVG→canvas so embedded Devanagari font renders (was: fragile SVG-as-`<img>` + double-draw).
 - [AMENDED] Export options shown as a **popover anchored to the Export button** (was: centered/left modal dialog).
 
+## [ADDED] Pivot Round 4 (feedback 2026-06-02)
+
+Additive scope — sibling ordering + form tweak. No prior DoD item is removed.
+
+### Person Form (sidebar)
+- [ADDED] `Living` checkbox renders **above** the Birth/Death year row (person
+  section only; spouse block unchanged). Death-year reveal behaviour unchanged.
+- [ADDED] **`Sequence`** — optional number input (integer ≥ 1), placed below the
+  Birth/Death row, hint "order among siblings (1, 2, 3…)".
+
+### Tree Canvas
+- [ADDED] Siblings render in a deterministic order: **sequence ascending, then
+  birth_year ascending**. Siblings with no sequence sort after numbered ones;
+  among equal/absent keys, original DB order is preserved (stable).
+
+### Data Model
+- [ADDED] `person.sequence INTEGER` (nullable). Existing rows default to NULL and
+  keep current behaviour until numbered.
+
 ## Decisions & Options
 
 | Decision | Chosen Option | Alternatives Considered | Rationale |
@@ -110,6 +129,7 @@ person
   spouse_death_year   INTEGER   -- [AMENDED] added Pivot R2
   spouse_gender       TEXT      -- [AMENDED] added Pivot R2: 'M' | 'F' | 'other'
   gender        TEXT       -- 'M' | 'F' | 'other'
+  sequence      INTEGER    -- [ADDED] Pivot R4: sibling order (≥1, nullable)
   notes         TEXT
   x_pos         FLOAT      -- persisted layout hint
   y_pos         FLOAT

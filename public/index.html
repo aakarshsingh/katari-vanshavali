@@ -92,6 +92,12 @@
           <input type="text" id="f-name-hi" name="name_hi" autocomplete="off" class="devanagari" />
         </div>
 
+        <div class="form-group">
+          <label class="check-label">
+            <input type="checkbox" id="f-living" checked /> Living
+          </label>
+        </div>
+
         <div class="form-group form-group--row">
           <div class="form-group">
             <label for="f-birth">Birth year</label>
@@ -104,9 +110,8 @@
         </div>
 
         <div class="form-group">
-          <label class="check-label">
-            <input type="checkbox" id="f-living" checked /> Living
-          </label>
+          <label for="f-seq">Sequence <span class="field-hint">order among siblings (1, 2, 3…)</span></label>
+          <input type="number" id="f-seq" name="sequence" min="1" />
         </div>
 
         <div class="form-group">

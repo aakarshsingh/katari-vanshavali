@@ -46,13 +46,31 @@ function computeLayout(persons, relationships, widthOf) {
   }));
 }
 
+// Sibling order: manual `sequence` first (1,2,3…), then birth_year — both
+// ascending. Missing values sort as +Infinity, so numbered siblings come before
+// unnumbered ones and dated before undated. Equal keys return 0, so Array.sort
+// (stable in modern engines) preserves the original DB order.
+function compareSiblings(a, b) {
+  const aSeq = (a && a.sequence != null) ? a.sequence : Infinity;
+  const bSeq = (b && b.sequence != null) ? b.sequence : Infinity;
+  if (aSeq !== bSeq) return aSeq - bSeq;
+  const aBirth = (a && a.birth_year != null) ? a.birth_year : Infinity;
+  const bBirth = (b && b.birth_year != null) ? b.birth_year : Infinity;
+  if (aBirth !== bBirth) return aBirth - bBirth;
+  return 0;
+}
+
 function buildAdjacency(persons, relationships) {
   const childrenOf = {};
-  for (const p of persons) childrenOf[p.id] = [];
+  const personById = {};
+  for (const p of persons) { childrenOf[p.id] = []; personById[p.id] = p; }
   for (const r of relationships) {
     if (childrenOf[r.parent_id] !== undefined) {
       childrenOf[r.parent_id].push(r.child_id);
     }
+  }
+  for (const pid in childrenOf) {
+    childrenOf[pid].sort((a, b) => compareSiblings(personById[a], personById[b]));
   }
   return childrenOf;
 }
@@ -313,4 +331,4 @@ function computeGroupedLayout(persons, relationships, focalId, widthOf) {
   }));
 }
 
-if (typeof module !== 'undefined') module.exports = { computeLayout, splitTree, computeGroupedLayout };
+if (typeof module !== 'undefined') module.exports = { computeLayout, splitTree, computeGroupedLayout, compareSiblings };

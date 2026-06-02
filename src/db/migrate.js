@@ -40,6 +40,9 @@ async function runMigrations() {
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS deceased BOOLEAN DEFAULT FALSE`);
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_deceased BOOLEAN DEFAULT FALSE`);
 
+    // Pivot R4: sibling ordering — manual sequence number (1, 2, 3…), nullable.
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS sequence INTEGER`);
+
     // Normalise the tree title to "Katari Lineage" (EN) / "वंशावली" (HI).
     // Only touches placeholder/broken states (empty, old default, or Devanagari
     // mistakenly stored in title_en) — won't clobber a real English title.

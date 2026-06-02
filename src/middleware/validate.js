@@ -32,6 +32,19 @@ function requireGender(field) {
   };
 }
 
+function requireValidSequence(field) {
+  return (req, res, next) => {
+    const val = req.body[field];
+    if (val !== undefined && val !== null && val !== '') {
+      const seq = Number(val);
+      if (!Number.isInteger(seq) || seq < 1) {
+        return res.status(400).json({ error: `${field} must be an integer >= 1` });
+      }
+    }
+    next();
+  };
+}
+
 function requireUUID(field) {
   return (req, res, next) => {
     const val = req.params[field] !== undefined ? req.params[field] : req.body[field];
@@ -42,4 +55,4 @@ function requireUUID(field) {
   };
 }
 
-module.exports = { requireName, requireValidYear, requireUUID, requireGender };
+module.exports = { requireName, requireValidYear, requireUUID, requireGender, requireValidSequence };
