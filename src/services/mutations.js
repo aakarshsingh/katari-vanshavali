@@ -6,6 +6,9 @@ const PERSON_FIELDS = [
   'name_en', 'name_hi', 'birth_year', 'death_year', 'spouse_en', 'spouse_hi',
   'spouse_birth_year', 'spouse_death_year', 'spouse_gender', 'gender', 'notes',
   'deceased', 'spouse_deceased', 'sequence',
+  // Phase 2.14+: admin-only per-card death-year force-hide flags. Non-admin
+  // writes are stripped upstream via pickPublicFields, so only admins set these.
+  'death_year_hidden', 'spouse_death_year_hidden',
 ];
 const PERSON_CREATE_COLS = ['id', ...PERSON_FIELDS, 'x_pos', 'y_pos'];
 
@@ -90,6 +93,10 @@ async function updatePerson(client, target_id, payload) {
   const before = await fetchOne(client, 'SELECT * FROM person WHERE id = $1', [target_id]);
   if (!before) throw notFound('person', target_id);
 
+  // PARTIAL MERGE (invariant — Phase 2.17): only keys present in `payload` are
+  // written; omitted columns are left untouched. This is what lets an approved
+  // whitelisted public edit (name/spouse/gender) preserve admin-entered detail
+  // (death year, notes, hide flags). Never widen this to a full-row replace.
   const sets = [];
   const vals = [];
   let i = 1;

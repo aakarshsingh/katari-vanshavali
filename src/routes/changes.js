@@ -5,6 +5,7 @@ const { requireAdmin } = require('../middleware/auth');
 const { requireUUID } = require('../middleware/validate');
 const { applyChange, withTransaction } = require('../services/mutations');
 const { recordPending, recordApplied, summarize } = require('../services/changelog');
+const { pickPublicFields } = require('../lib/public-fields');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_OPS = ['create', 'update', 'delete'];
@@ -75,11 +76,19 @@ router.post('/', async (req, res) => {
   const { op_type, entity, target_id, payload, client_token, submitter_note } = req.body;
   const invalid = validateChange({ op_type, entity, target_id, payload });
   if (invalid) return res.status(400).json({ error: invalid });
+  // Defence in depth: a non-admin person submission can only queue whitelisted
+  // fields — a crafted payload can't smuggle detail fields (notes, years, hide
+  // flags) into the review queue. parent_id is structural, kept for add-child.
+  let safePayload = payload;
+  if (!req.admin && entity === 'person') {
+    safePayload = pickPublicFields(payload);
+    if (payload && payload.parent_id !== undefined) safePayload.parent_id = payload.parent_id;
+  }
   try {
     const tree = await pool.query('SELECT id FROM tree LIMIT 1');
     const tree_id = tree.rows[0] ? tree.rows[0].id : null;
     const row = await recordPending(null, {
-      tree_id, op_type, entity, target_id, payload, client_token, submitter_note,
+      tree_id, op_type, entity, target_id, payload: safePayload, client_token, submitter_note,
     });
     res.status(201).json({ id: row.id, status: row.status });
   } catch (err) {

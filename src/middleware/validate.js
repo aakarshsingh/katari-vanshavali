@@ -45,6 +45,16 @@ function requireValidSequence(field) {
   };
 }
 
+function requireBoolean(field) {
+  return (req, res, next) => {
+    const val = req.body[field];
+    if (val !== undefined && typeof val !== 'boolean') {
+      return res.status(400).json({ error: `${field} must be a boolean` });
+    }
+    next();
+  };
+}
+
 function requireUUID(field) {
   return (req, res, next) => {
     const val = req.params[field] !== undefined ? req.params[field] : req.body[field];
@@ -55,4 +65,4 @@ function requireUUID(field) {
   };
 }
 
-module.exports = { requireName, requireValidYear, requireUUID, requireGender, requireValidSequence };
+module.exports = { requireName, requireValidYear, requireUUID, requireGender, requireValidSequence, requireBoolean };

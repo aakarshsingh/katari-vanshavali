@@ -3,18 +3,28 @@
 ## ▶ Phase 2 — Admin & Moderation (ACTIVE, started 2026-06-06)
 
 Net-new feature cycle on top of completed Phase 1 (below). Workflow position:
-**scope ✅ → design ✅ → plan ✅ → execute (IN PROGRESS: 2.0–2.13 + 2.8a done) → ship.**
+**scope ✅ → design ✅ → plan ✅ → execute (IN PROGRESS: 2.0–2.17 + 2.8a done) → ship.**
 
 > ▶ EXECUTION IN PROGRESS. Backend + client moderation pipeline + local pg-mem
-> done and committed (2026-06-07). **Public history panel (2.12) + admin page
-> (2.13) done 2026-06-07.** **Next: Phase 2.14** (field-visibility schema) via
-> `/as-p5-execute`.
+> done and committed (2026-06-07). **2.12 (public history) + 2.13 (admin page)
+> committed `819e8af`. 2.14–2.17 (field-visibility / API-lockdown serializer) done
+> 2026-06-07.** **Next: Phase 2.18** (two-tier edit form) via `/as-p5-execute`,
+> then 2.19 (admin "Show birth year" toggle), then 2.20 (local round-trip).
+>
+> ✅ **SECURITY GAP CLOSED (2.14–2.17):** the public/unauthenticated API no longer
+> returns hidden fields. `notes` + hide flags always stripped; `birth_year` gated by
+> `tree.show_birth_year` (default OFF); `death_year` per-card force-hide; non-admin
+> writes whitelisted (direct routes + moderation queue); approvals partial-merge so
+> admin detail survives. Single read chokepoint = `src/serializers/person.js`; single
+> write gate = `pickPublicFields` (`src/lib/public-fields.js`). 107/107 tests.
 >
 > Note (2.12): history-panel styling lives in `css/main.css` (not JS-injected) per
 > user feedback — default new component styling to the CSS files. See memory
 > `feedback_styles_in_css`.
 > Note (2.13): admin UI is served at **`/admin.html`** (static); admin history shows
 > resolved-timestamp attribution, not username (no admin-lookup endpoint yet).
+> Note (2.16/2.17): settings tests live in `tests/changes.test.js` (no settings.test.js);
+> hide-flag columns added to `mutations.PERSON_FIELDS`; `tests/persons.test.js` created.
 >
 > ✚ AMENDED 2026-06-07: folded in **Admin-Curated Public View & Simplified Public
 > Form** before execution. Plan is now **20 phases (2.0–2.19)**. New phases

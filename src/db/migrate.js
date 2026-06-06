@@ -70,6 +70,13 @@ async function runMigrations() {
     // idempotent. Moderation defaults OFF so behaviour is unchanged until enabled.
     await client.query(`ALTER TABLE tree ADD COLUMN IF NOT EXISTS moderation_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
 
+    // Phase 2.14: field-visibility flags. Birth-year reveal is OFF by default
+    // (global, on the tree); per-person death-year force-hide is OFF by default.
+    // Soft-hide only — these gate the public serializer, never delete data.
+    await client.query(`ALTER TABLE tree ADD COLUMN IF NOT EXISTS show_birth_year BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS death_year_hidden BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year_hidden BOOLEAN NOT NULL DEFAULT FALSE`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS admin_user (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

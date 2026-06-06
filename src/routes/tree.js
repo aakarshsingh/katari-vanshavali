@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../db/client');
 const { applyChange, withTransaction } = require('../services/mutations');
 const { recordPending, recordApplied } = require('../services/changelog');
+const { serializePersons } = require('../serializers/person');
 
 async function moderationOn() {
   const { rows } = await pool.query('SELECT moderation_enabled FROM tree LIMIT 1');
@@ -27,7 +28,11 @@ router.get('/', async (req, res) => {
       'SELECT * FROM relationship WHERE tree_id = $1',
       [tree.id]
     );
-    res.json({ tree, persons: personsResult.rows, relationships: relResult.rows });
+    const persons = serializePersons(personsResult.rows, {
+      isAdmin: !!req.admin,
+      showBirthYear: tree.show_birth_year === true,
+    });
+    res.json({ tree, persons, relationships: relResult.rows });
   } catch (err) {
     console.error('GET /api/tree error:', err.message);
     res.status(500).json({ error: 'Internal server error' });

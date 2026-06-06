@@ -2045,10 +2045,10 @@ from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocke
 | 2.11 | overlay.js optimistic cache + toast + reconcile | Pending |
 | 2.12 | Public history panel | Completed |
 | 2.13 | Admin page (signup/login/dashboard/queue/history/revert) | Completed |
-| 2.14 | Visibility schema — show_birth_year + two death-hide flags | Pending |
-| 2.15 | Serializer + pickPublicFields whitelist + requireBoolean (+ unit tests) | Pending |
-| 2.16 | Wire serializer/whitelist into tree GET + persons routes (+ tests) | Pending |
-| 2.17 | settings show_birth_year + changes whitelist + applyChange merge (+ test) | Pending |
+| 2.14 | Visibility schema — show_birth_year + two death-hide flags | Completed |
+| 2.15 | Serializer + pickPublicFields whitelist + requireBoolean (+ unit tests) | Completed |
+| 2.16 | Wire serializer/whitelist into tree GET + persons routes (+ tests) | Completed |
+| 2.17 | settings show_birth_year + changes whitelist + applyChange merge (+ test) | Completed |
 | 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Pending |
 | 2.19 | Admin "Show birth year" dashboard toggle | Pending |
 | 2.20 | Local round-trip test on mock DB (manual E2E) | Pending |
@@ -2963,7 +2963,7 @@ dev launcher must seed the in-memory DB itself.
 
 ### Phase 2.14: Visibility schema — show_birth_year + two death-hide flags
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `src/db/migrate.js` — modify
@@ -2976,24 +2976,34 @@ dev launcher must seed the in-memory DB itself.
 - Keep the migration log line.
 
 **Verification:**
-- [ ] `node --check src/db/migrate.js` passes.
-- [ ] `node -e "require('./src/db/migrate')"` loads without error.
-- [ ] SQL reviewed: every new statement is `ADD COLUMN IF NOT EXISTS`; safe to re-run.
-- [ ] `npm test` → green (no behaviour change yet).
+- [x] `node --check src/db/migrate.js` → `CHECK_OK`.
+- [x] `node -e "require('./src/db/migrate')"` → `LOAD_OK`.
+- [x] SQL reviewed: all three new statements are `ADD COLUMN IF NOT EXISTS`; safe to re-run.
+- [x] `npm test` → 83/83 green (no behaviour change yet).
+- [x] dev:mock boot: "Migrations complete."; `GET /api/tree` → `tree.show_birth_year=false`.
 
 **Definition of Done:**
-- [ ] Three columns defined idempotently, all defaulting to FALSE.
+- [x] Three columns defined idempotently, all defaulting to FALSE.
 
 **Self-Audit:** standard + idempotency confirmed; defaults match requirements
 (birth-year reveal OFF, force-hide OFF).
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: Added the three boolean columns in a "Phase 2.14" block
+  directly after the moderation flag — `tree.show_birth_year`,
+  `person.death_year_hidden`, `person.spouse_death_year_hidden`, all
+  `NOT NULL DEFAULT FALSE` and `ADD COLUMN IF NOT EXISTS` (idempotent, soft-hide
+  only). Verified under pg-mem: migration runs clean and the column surfaces on the
+  tree with the expected `false` default. No serializer wired yet (that is 2.15–2.16),
+  so the public API still returns all fields until then — unchanged behaviour, as planned.
+- Deviations from plan: None.
+- Field notes: None.
 
 ---
 
 ### Phase 2.15: Serializer + whitelist + requireBoolean (+ unit tests)
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `src/serializers/person.js` — create
@@ -3016,25 +3026,47 @@ dev launcher must seed the in-memory DB itself.
   boolean → 400 `{error}`.
 
 **Verification:**
-- [ ] `node --check` on all three source files.
-- [ ] `tests/serializer.test.js` covers: admin full passthrough incl. flags; public
-      strips notes + flags always; `showBirthYear=false` strips both birth fields;
-      `death_year_hidden` strips `death_year` (spouse symmetric); input row not mutated.
-- [ ] `npm test` → all green (32 + new).
+- [x] `node --check` on all three source files → `CHECK_OK`.
+- [x] `tests/serializer.test.js` (12 tests) covers: admin full passthrough incl. flags;
+      public strips notes + flags always; `showBirthYear=false` strips both birth fields;
+      `death_year_hidden` strips `death_year` (spouse symmetric, both directions);
+      death years shown when not force-hidden; input row not mutated; defaults =
+      public/hidden; null/empty handling; `serializePersons` list mapping.
+- [x] `npm test` → 95/95 green (83 + 12 new).
 
 **Definition of Done:**
-- [ ] Serializer, whitelist, and validator implemented and unit-tested; no route
+- [x] Serializer, whitelist, and validator implemented and unit-tested; no route
       wired yet.
 
 **Self-Audit:** standard + immutability (returns new objects); no field leak paths missed.
+- [x] Only target files touched (serializers/person.js, lib/public-fields.js, middleware/validate.js, tests/serializer.test.js)
+- [x] Immutable — `serializePerson` shallow-copies then deletes; test asserts the input row is untouched
+- [x] No field-leak paths missed — `notes` + both hide flags always stripped for public; birth fields gated by toggle; death fields per force-hide flag
+- [x] Matches conventions.md (small focused modules, kebab files)
+- [x] node --check + 95/95 green
+- [x] Changes minimum necessary; no route wired yet (2.16)
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: `serializers/person.js` — `serializePerson(row, { isAdmin,
+  showBirthYear })`: admins get the row reference unchanged (incl. hide flags);
+  public path shallow-copies, always deletes `notes` + `death_year_hidden` +
+  `spouse_death_year_hidden`, deletes `birth_year`/`spouse_birth_year` unless
+  `showBirthYear`, and deletes `death_year`/`spouse_death_year` per the matching
+  force-hide flag. `serializePersons` maps a list (nullish → `[]`). `lib/public-fields.js`
+  — `PUBLIC_FIELDS` = name_en/name_hi/spouse_en/spouse_hi/spouse_gender/gender;
+  `pickPublicFields(body)` returns a new object of only present whitelisted keys.
+  `middleware/validate.js` — added `requireBoolean(field)` (optional; non-boolean →
+  400) and exported it.
+- Deviations from plan: None.
+- Field notes: Serializer reads the per-person flags off the **raw** `row` (not the
+  copy) when deciding deletes, so flag-driven hiding is unaffected by the fact the
+  flags themselves are stripped from the output.
 
 ---
 
 ### Phase 2.16: Wire serializer/whitelist into tree GET + persons routes (+ tests)
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `src/routes/tree.js` — modify
@@ -3056,24 +3088,56 @@ dev launcher must seed the in-memory DB itself.
   PATCH sets hide flags; GET responses reflect requester (admin vs public).
 
 **Verification:**
-- [ ] `node --check` on both routes.
-- [ ] `npm test` → green incl. new persons assertions.
-- [ ] Manual reasoning: a visitor `GET /api/tree` (default) returns no `birth_year`
-      and no `notes`; admin returns full rows.
+- [x] `node --check` on tree.js, persons.js, mutations.js → `CHECK_OK`.
+- [x] `npm test` → 101/101 green (95 + 6 new `tests/persons.test.js`).
+- [x] dev:mock E2E: admin creates person with `birth_year`+`notes`+`death_year`;
+      **public** `GET /api/tree` → no `birth_year`, no `notes`, `death_year` shown;
+      **admin** `GET` → full row incl. `notes`, `birth_year`, `death_year_hidden`.
 
 **Definition of Done:**
-- [ ] Read + write person paths are auth-aware; non-admin writes whitelisted.
+- [x] Read + write person paths are auth-aware; non-admin writes whitelisted.
 
 **Self-Audit:** standard + every person-emitting response passes through the
 serializer; whitelist applied before DB write.
+- [x] Only target files touched (tree.js, persons.js, tests/persons.test.js) + mutations.js* (see deviation)
+- [x] Every person-emitting response serialized — `GET /api/tree`, `POST`/`PATCH /api/persons` (202/DELETE carry no person)
+- [x] Whitelist applied before DB write on the non-admin path (`personPayload` → `pickPublicFields`)
+- [x] Hide flags writable by admins only (in `PERSON_FIELDS`, but non-admin body is whitelisted first); `requireBoolean` guards both
+- [x] node --check + 101/101 green
+- [x] Changes minimum necessary
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: Replaced `persons.js` `moderationOn()` with `treeFlags()` —
+  one query `SELECT moderation_enabled, show_birth_year` returning
+  `{ moderation, showBirthYear }`, so the moderation gate and the response serializer
+  read the same row (no extra query; existing mocked-`pool` sequences unchanged since
+  it's still a single query). New `personPayload(req, { withParent })` helper: admins
+  use the full body; non-admins are reduced via `pickPublicFields`, with `parent_id`
+  re-added on the create path (structural pointer, not a protected detail field — the
+  add-child-under-moderation flow needs it per architecture §"Add-child under
+  moderation"). POST/PATCH responses serialized with `{ isAdmin: !!req.admin,
+  showBirthYear }`; added `requireBoolean('death_year_hidden')` +
+  `requireBoolean('spouse_death_year_hidden')` to both validator chains. `tree.js`
+  GET maps persons through `serializePersons` using `req.admin` + `tree.show_birth_year`.
+  New `tests/persons.test.js` asserts: public GET strips notes/birth/flags (keeps
+  death_year), admin GET full; non-admin POST insert SQL omits non-whitelisted columns;
+  non-admin PATCH of only detail fields → 400; admin PATCH sets `death_year_hidden`;
+  non-boolean flag → 400.
+- Deviations from plan: (1) **`mutations.js` touched here** (not just 2.17): added the
+  two hide-flag columns to `PERSON_FIELDS` so admin writes actually persist — required
+  for this phase's "admin may set hide flags". `mutations.js` is a 2.17 target and the
+  whole 2.14–2.17 set is user-authorized as a batch, so flagged rather than halted.
+  (2) `tests/persons.test.js` **created** (plan said "modify"); it did not exist —
+  person route tests previously lived in `api.test.js`, which remains untouched and green.
+- Field notes: `personPayload` centralizes the admin-vs-public field gate for both
+  POST and PATCH — the single client-write chokepoint mirroring the serializer's single
+  read chokepoint.
 
 ---
 
 ### Phase 2.17: settings show_birth_year + changes whitelist + applyChange merge (+ test)
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `src/routes/settings.js` — modify
@@ -3094,17 +3158,58 @@ serializer; whitelist applied before DB write.
   whitelisted change leaves untouched columns intact.
 
 **Verification:**
-- [ ] `node --check` on the three source files.
-- [ ] `npm test` → green incl. settings assertions.
+- [x] `node --check` on settings.js, changes.js, mutations.js → `CHECK_OK`.
+- [x] `npm test` → 107/107 green (101 + 6 new settings/changes assertions).
+- [x] dev:mock E2E: `show_birth_year` OFF → public hides birth_year; admin
+      `PATCH {show_birth_year:true}` → public now shows `birth_year:1900`, `notes`
+      still hidden. Under moderation, a non-admin update bundling `notes:"HACK"` +
+      name change → approved → name updated, original `notes` **preserved**, `HACK`
+      never applied (whitelist), `birth_year` intact (merge).
 
 **Definition of Done:**
-- [ ] Birth-year reveal toggle exposed + gated; queued payloads whitelisted; merge
+- [x] Birth-year reveal toggle exposed + gated; queued payloads whitelisted; merge
       semantics guaranteed.
 
 **Self-Audit:** standard + admin-only PATCH enforced server-side; no detail-field
 loss on approve.
+- [x] Only target files touched (settings.js, changes.js, mutations.js) + changes.test.js* (see deviation)
+- [x] `PATCH /api/settings` admin-gated (`requireAdmin`); show_birth_year 401 without auth (test)
+- [x] Queued non-admin person payloads whitelisted (`pickPublicFields`, parent_id preserved)
+- [x] Partial-merge invariant documented + E2E-verified (admin detail survives approve)
+- [x] No detail-field loss on approve; no field leak (notes always private)
+- [x] node --check + 107/107 green
+- [x] Changes minimum necessary
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: `settings.js` — `GET /` now returns `{ moderation_enabled,
+  show_birth_year }` (both coerced to real booleans, default false when no tree row);
+  `PATCH /` accepts either/both flags from a fixed `BOOLEAN_SETTINGS` whitelist, each
+  validated as boolean, builds a dynamic `SET` from the known column names (safe — not
+  user keys), returns both flags, 400 when no recognised setting present, 404 when no
+  tree row. `changes.js` `POST /` — on non-admin `entity:'person'` submit, `payload`
+  is reduced via `pickPublicFields` (with `parent_id` preserved for add-child) before
+  `recordPending`, so a crafted payload can't smuggle detail fields into the queue.
+  `mutations.js` `updatePerson` — added a PARTIAL-MERGE invariant comment (behaviour
+  was already partial: only payload keys are written; never a full-row replace) so an
+  approved whitelisted public edit preserves admin-entered detail.
+- Deviations from plan: `tests/settings.test.js` does **not** exist — the settings
+  suite lives in `tests/changes.test.js`. My `GET`/`PATCH` response-shape change
+  (adding `show_birth_year`) would break its existing `toEqual` assertions, so I
+  updated those there and added the new `show_birth_year` coverage (GET default/true,
+  PATCH toggle, 401-without-auth, non-boolean 400, no-setting 400) + a `changes.js`
+  whitelist test in the same file. So 2.17's "tests/settings.test.js — modify" was
+  realized in `tests/changes.test.js` to keep the settings suite cohesive and green
+  rather than fragmenting it into a new file.
+- Field notes: `settings.GET` is public and now exposes `show_birth_year` — needed by
+  the client (2.18/2.19) to decide birth-year rendering; it is not sensitive (it's a
+  display policy, and the actual values are already gated by the serializer).
+
+> **API-lockdown milestone (2.14–2.17) complete.** The public (unauthenticated) API
+> no longer returns hidden fields: `notes` + hide flags always stripped, `birth_year`
+> gated by `tree.show_birth_year` (default OFF), `death_year` per-card force-hide;
+> non-admin writes whitelisted on both the direct routes and the moderation queue;
+> approvals merge (admin detail preserved). This closes the security gap flagged in
+> `resume.md` ("the public API still returns all person fields").
 
 ---
 

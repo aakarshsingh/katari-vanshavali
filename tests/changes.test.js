@@ -25,18 +25,24 @@ beforeEach(() => {
 });
 
 describe('settings route', () => {
-  test('GET /api/settings → returns moderation flag (public)', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: false }] });
+  test('GET /api/settings → returns both flags (public)', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: false, show_birth_year: false }] });
     const res = await request(app).get('/api/settings');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ moderation_enabled: false });
+    expect(res.body).toEqual({ moderation_enabled: false, show_birth_year: false });
   });
 
-  test('GET /api/settings → defaults to false when no tree row', async () => {
+  test('GET /api/settings → both default to false when no tree row', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).get('/api/settings');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ moderation_enabled: false });
+    expect(res.body).toEqual({ moderation_enabled: false, show_birth_year: false });
+  });
+
+  test('GET /api/settings → reflects show_birth_year=true', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: false, show_birth_year: true }] });
+    const res = await request(app).get('/api/settings');
+    expect(res.body.show_birth_year).toBe(true);
   });
 
   test('PATCH /api/settings → 401 without auth', async () => {
@@ -46,21 +52,54 @@ describe('settings route', () => {
     expect(res.status).toBe(401);
   });
 
-  test('PATCH /api/settings → toggles with admin', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: true }] });
+  test('PATCH /api/settings → toggles moderation with admin', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: true, show_birth_year: false }] });
     const res = await request(app)
       .patch('/api/settings')
       .set('Cookie', adminCookie)
       .send({ moderation_enabled: true });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ moderation_enabled: true });
+    expect(res.body).toEqual({ moderation_enabled: true, show_birth_year: false });
   });
 
-  test('PATCH /api/settings → 400 on non-boolean', async () => {
+  test('PATCH /api/settings → toggles show_birth_year with admin', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: false, show_birth_year: true }] });
+    const res = await request(app)
+      .patch('/api/settings')
+      .set('Cookie', adminCookie)
+      .send({ show_birth_year: true });
+    expect(res.status).toBe(200);
+    expect(res.body.show_birth_year).toBe(true);
+  });
+
+  test('PATCH /api/settings → 401 toggling show_birth_year without auth', async () => {
+    const res = await request(app)
+      .patch('/api/settings')
+      .send({ show_birth_year: true });
+    expect(res.status).toBe(401);
+  });
+
+  test('PATCH /api/settings → 400 on non-boolean show_birth_year', async () => {
+    const res = await request(app)
+      .patch('/api/settings')
+      .set('Cookie', adminCookie)
+      .send({ show_birth_year: 'yes' });
+    expect(res.status).toBe(400);
+  });
+
+  test('PATCH /api/settings → 400 on non-boolean moderation_enabled', async () => {
     const res = await request(app)
       .patch('/api/settings')
       .set('Cookie', adminCookie)
       .send({ moderation_enabled: 'yes' });
+    expect(res.status).toBe(400);
+  });
+
+  test('PATCH /api/settings → 400 when no recognised setting provided', async () => {
+    const res = await request(app)
+      .patch('/api/settings')
+      .set('Cookie', adminCookie)
+      .send({ nonsense: true });
     expect(res.status).toBe(400);
   });
 
@@ -224,6 +263,25 @@ describe('changes routes', () => {
       .post('/api/changes')
       .send({ op_type: 'frob', entity: 'person', payload: {} });
     expect(res.status).toBe(400);
+  });
+
+  test('POST /api/changes → non-admin person payload is whitelisted before queuing', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: 't1' }] }) // tree id
+      .mockResolvedValueOnce({ rows: [{ id: 'c1', status: 'pending' }] }); // recordPending
+    const res = await request(app)
+      .post('/api/changes')
+      .send({
+        op_type: 'create', entity: 'person',
+        payload: { name_en: 'X', notes: 'secret', birth_year: 1990, parent_id: PID },
+        client_token: 'tok',
+      });
+    expect(res.status).toBe(201);
+    const queuedPayloadJson = pool.query.mock.calls[1][1][4]; // toJson(payload) at $5
+    expect(queuedPayloadJson).toContain('name_en');
+    expect(queuedPayloadJson).toContain('parent_id'); // structural — preserved
+    expect(queuedPayloadJson).not.toContain('notes');
+    expect(queuedPayloadJson).not.toContain('birth_year');
   });
 
   test('GET /api/changes (queue) → 401 without auth, list with admin', async () => {
