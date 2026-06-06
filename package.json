@@ -9,8 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "migrate": "node src/db/migrate.js",
-    "seed": "node --env-file-if-exists=.env src/db/seed.js",
-    "seed:pdf": "node --env-file-if-exists=.env scripts/seed-pdf.js",
+    "dev:mock": "node scripts/dev-mock.js",
     "test": "jest"
   },
   "repository": {
@@ -27,13 +26,17 @@
   "homepage": "https://github.com/aakarshsingh/katari-vanshavali#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.3",
     "pdf-parse": "^2.4.5",
     "pg": "^8.13.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
+    "pg-mem": "^3.0.14",
     "supertest": "^7.0.0"
   }
 }

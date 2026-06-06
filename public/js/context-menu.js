@@ -22,12 +22,10 @@ async function ctxDeletePerson(nodeId) {
   if (!nodeId) return;
   if (!confirm('Delete this person? This cannot be undone.')) return;
   try {
-    await api.deletePerson(nodeId);
-    const newPersons = window.__state.persons.filter(p => p.id !== nodeId);
-    const newRelationships = window.__state.relationships.filter(
-      r => r.parent_id !== nodeId && r.child_id !== nodeId
-    );
-    setState({ persons: newPersons, relationships: newRelationships });
+    const result = await mutate.deletePerson(nodeId);
+    if (!result.pending) {
+      setState({ persons: result.persons, relationships: result.relationships });
+    }
   } catch (err) {
     alert('Delete failed: ' + (err.message || 'Unknown error'));
   }

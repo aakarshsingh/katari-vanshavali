@@ -215,3 +215,355 @@ Server-side: no cache needed (stateless route).
 | Railway cold-start first query latency | pg pool `idleTimeoutMillis: 30 000`; Railway paid plan keeps containers warm |
 | Single-root constraint: user may want two founding ancestors later | Data model already supports multi-root (no parent FK on person); constraint is in `sidebar.js` only — easy to lift in v2 |
 | Drag-and-drop absent: user may accidentally need to restructure | Delete + re-add via context menu is the v1 workflow; consider drag in v2 if grandfather requests it |
+
+---
+
+# Architecture: Phase 2 — Admin & Moderation
+
+> Appended for Feature Cycle 2 (2026-06-06). Builds on the Phase 1 architecture
+> above; nothing prior is replaced. Controlling inputs: the "Admin & Moderation"
+> section of `requirements.md` and `conventions.md`.
+
+## Overview
+
+Phase 2 adds the project's first authentication layer (admin accounts via a
+first-run signup, bcryptjs hashing, JWT in an httpOnly cookie) and an
+edit-moderation pipeline. Every tree mutation is funnelled through a single
+**apply service**; when `tree.moderation_enabled` is ON and the caller is not an
+authenticated admin, the mutation is recorded as a **pending `change_request`**
+instead of being written to the live tables. Anonymous contributors keep seeing
+their own pending edits through a client-side **optimistic overlay** (localStorage
+keyed by a random `client_token`) labelled "submitted for approval", while the
+shared tree everyone else loads stays unchanged. Admins use a separate, unlinked
+`/admin` page to log in, toggle moderation, review the queue
+(approve / edit-then-approve / reject), and browse **version history** with
+one-click revert. The `change_request` table is the single source for both the
+queue and history — applied/reverted rows *are* the audit log. The public tree
+page is visually unchanged except a non-blocking "submitted" toast and an
+unobtrusive read-only History panel. Phase 1 seed code is retired.
+
+## Module Breakdown
+
+### Backend
+| Module/Component | Responsibility | New or Modified |
+|------------------|----------------|-----------------|
+| `src/db/migrate.js` | Add `admin_user`, `change_request` tables; `tree.moderation_enabled` column. All additive + idempotent. No env credential bootstrap (first admin via signup). | Modified |
+| `src/auth/credentials.js` | `hashPassword`/`verifyPassword` (bcryptjs); `signToken`/`verifyToken` (jsonwebtoken). Reads `JWT_SECRET`; if unset, generates a random per-boot secret (degraded: sessions don't survive restart). | New |
+| `src/middleware/auth.js` | `attachAdmin` (reads JWT cookie → `req.admin` or null, never throws); `requireAdmin` (401 when no valid admin). | New |
+| `src/services/mutations.js` | `applyChange({op_type, entity, target_id, payload})` — the **single writer** to `person`/`relationship`/`tree`, run inside a transaction (`pool.connect`); returns `{ before, after }`. Used by direct routes, approve, and revert. | New |
+| `src/services/changelog.js` | `recordApplied({...})` and `recordPending({...})` — insert `change_request` rows; `summarize` helper for before→after diffs. | New |
+| `src/routes/auth.js` | `GET /status` (`{needsSetup, authed}`), `POST /setup` (first admin only, hard-guarded), `POST /login`, `POST /logout`, `GET /me`, `POST /admins` (admin-only, create more admins). | New |
+| `src/routes/settings.js` | `GET /` (public → `{moderation_enabled}`), `PATCH /` (admin → toggle). | New |
+| `src/routes/changes.js` | `POST /` (submit pending), `GET /?status=pending` (admin queue), `GET /applied` (public, anonymized), `GET /mine?token=` (public, by client_token), `POST /:id/approve`, `/reject`, `/revert` (admin). | New |
+| `src/routes/persons.js`, `relationships.js`, `tree.js` | On mutate: if moderation ON and `!req.admin` → create pending change_request (202); else `applyChange` + `recordApplied`. Reuse existing validators. | Modified |
+| `server.js` | Mount `cookie-parser`, `attachAdmin`, new routers; remove `seedIfEmpty` + `runSeed` import/call. | Modified |
+
+### Frontend
+| Module/Component | Responsibility | New or Modified |
+|------------------|----------------|-----------------|
+| `public/admin.html` | Standalone admin page shell (login / signup / dashboard containers). | New |
+| `public/js/admin/admin-api.js` | Fetch wrappers for auth/settings/changes (same-origin credentials). | New |
+| `public/js/admin/admin-app.js` | View router: `status` → first-run signup / login / dashboard (moderation toggle, pending queue with approve/edit/reject, history + revert, add-admin). | New |
+| `public/css/admin.css` | Admin page styling (vintage-consistent, isolated from main app). | New |
+| `public/js/mutate.js` | **The chokepoint.** Intent fns `createPersonWithParent`, `updatePerson`, `deletePerson`, `updateTitle`. Reads `window.__moderation`; routes direct (`api.*`) vs queued (`POST /api/changes`); applies optimistic state + overlay; returns the new `{persons, relationships}` / pending marker. | New |
+| `public/js/overlay.js` | localStorage overlay keyed by `client_token`; merge over server tree on load; `reconcile()` via `/api/changes/mine` (applied→drop, rejected→drop+notice, pending→keep); toast helper. | New |
+| `public/js/history.js` | Public read-only History panel (`GET /api/changes/applied`). | New |
+| `public/js/api.js` | Add auth/settings/changes wrappers; send `credentials:'same-origin'`. | Modified |
+| `public/js/main.js` | `init` loads `GET /api/settings` + `GET /api/auth/me` → `window.__moderation = {enabled, admin}`; apply overlay inside `setState`; title edits via `mutate.updateTitle`; wire History panel. | Modified |
+| `public/js/sidebar.js` | `handleSubmit`/`handleDelete` call `mutate.*` instead of `api.*` directly. | Modified |
+| `public/js/context-menu.js` | `ctxDeletePerson` calls `mutate.deletePerson`. | Modified |
+| `public/index.html` | Add History panel markup; include `mutate.js`, `overlay.js`, `history.js` (load order: after `api.js`, before `sidebar`/`context-menu`/`main`). | Modified |
+| `package.json` | Add `bcryptjs`, `jsonwebtoken`, `cookie-parser`; remove `seed` / `seed:pdf` scripts. | Modified |
+
+## Data Flow
+
+**Anonymous edit, moderation ON (primary case):**
+1. Visitor unlocks, edits a node, saves → `sidebar.handleSubmit` → `mutate.updatePerson(id, data)`.
+2. `mutate` sees `window.__moderation.enabled && !admin` → `POST /api/changes` `{op_type:'update', entity:'person', target_id, payload, client_token, submitter_note}`.
+3. Server `recordPending` inserts a `change_request` (status `pending`); returns `{id, status:'pending'}`.
+4. `mutate` writes an overlay entry (request id + payload) to localStorage under `client_token`, applies the edit optimistically to `state`, shows a "Submitted to admin for approval" toast. Live DB untouched.
+5. Admin → `/admin` → queue → optionally edits payload → **Approve** → `applyChange` (transaction): capture `before_snapshot`, write `person`, set row `status=applied`, `after_snapshot`, `resolved_by/at`.
+6. Visitor reloads → `overlay.reconcile()` → `/api/changes/mine?token=` → item is `applied` → overlay dropped; refreshed `/api/tree` already reflects it.
+
+**Admin (authed) or moderation OFF:** `mutate` calls the existing direct routes; server `applyChange` + `recordApplied` (before/after captured). No overlay. History still records it.
+
+**Add-child under moderation:** a single bundled `change_request` (`entity:'person'`, `op_type:'create'`, payload includes `parent_id`); approve creates person **and** relationship atomically in one transaction. Revert of a create deletes both (from `after_snapshot`).
+
+**First-run:** `/admin` → `GET /api/auth/status` → `needsSetup:true` → signup form → `POST /api/auth/setup` (allowed only while `admin_user` empty) → sets cookie → dashboard. Subsequent admins via dashboard `POST /api/auth/admins`.
+
+## File Targets
+| File Path | Action | Description |
+|-----------|--------|-------------|
+| `src/db/migrate.js` | Modify | Add admin_user, change_request, moderation_enabled (idempotent) |
+| `src/auth/credentials.js` | Create | bcryptjs + JWT helpers |
+| `src/middleware/auth.js` | Create | attachAdmin, requireAdmin |
+| `src/services/mutations.js` | Create | applyChange transactional writer |
+| `src/services/changelog.js` | Create | recordApplied/recordPending/summarize |
+| `src/routes/auth.js` | Create | status/setup/login/logout/me/admins |
+| `src/routes/settings.js` | Create | moderation get/toggle |
+| `src/routes/changes.js` | Create | submit/list/applied/mine/approve/reject/revert |
+| `src/routes/persons.js` | Modify | moderation branch |
+| `src/routes/relationships.js` | Modify | moderation branch |
+| `src/routes/tree.js` | Modify | moderation branch for title |
+| `server.js` | Modify | cookie-parser, attachAdmin, mount routers, remove seed |
+| `public/admin.html` | Create | admin page shell |
+| `public/js/admin/admin-api.js` | Create | admin fetch wrappers |
+| `public/js/admin/admin-app.js` | Create | admin view router + dashboard |
+| `public/css/admin.css` | Create | admin styling |
+| `public/js/mutate.js` | Create | mutation chokepoint |
+| `public/js/overlay.js` | Create | optimistic localStorage overlay |
+| `public/js/history.js` | Create | public history panel |
+| `public/js/api.js` | Modify | auth/settings/changes wrappers |
+| `public/js/main.js` | Modify | load moderation state, overlay, title via mutate |
+| `public/js/sidebar.js` | Modify | route mutations via mutate |
+| `public/js/context-menu.js` | Modify | route delete via mutate |
+| `public/index.html` | Modify | history markup + script includes |
+| `package.json` | Modify | add deps, drop seed scripts |
+| `src/db/seed.js` | Delete | retire seed |
+| `scripts/seed-pdf.js` | Delete | retire seed |
+| `docs/seed.json` | Keep | offline data backup (no code refs) |
+| `tests/auth.test.js` | Create | auth route tests |
+| `tests/changes.test.js` | Create | moderation pipeline tests |
+
+## Schema Additions (additive + idempotent)
+```sql
+ALTER TABLE tree ADD COLUMN IF NOT EXISTS moderation_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS admin_user (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS change_request (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tree_id UUID REFERENCES tree(id) ON DELETE CASCADE,
+  op_type TEXT NOT NULL CHECK (op_type IN ('create','update','delete')),
+  entity  TEXT NOT NULL CHECK (entity IN ('person','relationship','tree')),
+  target_id UUID,                       -- null for create
+  payload JSONB,                        -- proposed fields
+  before_snapshot JSONB,                -- captured at apply time (revert source)
+  after_snapshot  JSONB,                -- captured at apply time (e.g. created ids)
+  status TEXT NOT NULL DEFAULT 'pending'
+         CHECK (status IN ('pending','approved','rejected','applied','reverted')),
+  submitter_note TEXT,
+  client_token TEXT,                    -- links an anonymous submission to its browser
+  resolved_by UUID REFERENCES admin_user(id),
+  submitted_at TIMESTAMPTZ DEFAULT now(),
+  resolved_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_change_request_status ON change_request(status);
+CREATE INDEX IF NOT EXISTS idx_change_request_token  ON change_request(client_token);
+```
+
+## External Touchpoints
+- **Cookies:** httpOnly, SameSite=Lax JWT session (~7-day expiry); cleared on logout.
+- **Env (Railway):** `JWT_SECRET` (recommended; random per-boot fallback if unset). `ANTHROPIC_API_KEY` unchanged. `ADMIN_USERNAME`/`ADMIN_PASSWORD` no longer used.
+- **New npm deps:** `bcryptjs` (pure-JS — no native build on Railway), `jsonwebtoken`, `cookie-parser`.
+- **Migration:** `railway.toml` runs `npm run migrate && npm start`; new tables created on next deploy.
+- All other changes internal.
+
+## DoD Traceability
+| Requirement (DoD group) | Architectural Component |
+|--------------------------|-------------------------|
+| admin_user table + first-run signup + add-admin | `migrate.js`, `auth/credentials.js`, `routes/auth.js` (status/setup/admins) |
+| login/logout/me + httpOnly JWT cookie | `routes/auth.js`, `auth/credentials.js`, `middleware/auth.js` |
+| requireAdmin guards admin routes | `middleware/auth.js` applied in settings/changes/auth routes |
+| moderation_enabled setting + toggle (default OFF) | `tree.moderation_enabled`, `routes/settings.js`, `mutate.js` |
+| change_request table (queue + history) | schema, `services/changelog.js` |
+| write-through + log every change (admin/OFF) | `routes/{persons,relationships,tree}.js`, `services/mutations.js`, `recordApplied` |
+| queue anonymous edits when moderation ON | mutation routes branch + `routes/changes.js` `POST /`, `recordPending` |
+| admin review approve / edit-then-approve / reject | `routes/changes.js`, `admin-app.js` |
+| one-click revert (admin) | `routes/changes.js` `/revert`, `applyChange` with before_snapshot, `admin-app.js` |
+| public read-only audit log (anonymized) | `GET /api/changes/applied`, `history.js` |
+| presentation unchanged + "submitted" toast | `mutate.js`, `overlay.js`, no render changes |
+| optimistic local cache + reconcile | `overlay.js`, client_token, `GET /api/changes/mine`, `main.js` |
+| title edits queued (entity='tree') | `mutate.updateTitle`, `routes/tree.js` branch |
+| cleanup: remove seed | `server.js`, delete `src/db/seed.js` + `scripts/seed-pdf.js`, `package.json` |
+
+## Test Strategy
+- **Chosen:** TS2 — extend existing jest + supertest harness (`pool.query` mocked; 32 tests passing).
+- **Rationale:** Backend is well-covered by the existing pattern; adding routes/services fits cleanly. No frontend DOM test harness exists; building one for the overlay is out of scope this cycle.
+- **Verification:**
+  - `tests/auth.test.js`: setup creates first admin only when empty (409 otherwise); login success/failure; `me`; `requireAdmin` returns 401 without cookie.
+  - `tests/changes.test.js`: submit → pending; approve → applies + records before/after; reject; revert restores snapshot; `/applied` omits admin identity; `/mine` filters by token; persons route branches pending vs applied by moderation flag + admin.
+  - Add a `pool.connect` mock (returns `{query, release}`) for transactional `applyChange`.
+  - Keep all 32 existing tests green; target ≥80% statements on new backend modules.
+  - Manual on Railway: first-run signup, toggle moderation, anonymous edit → toast + overlay persists across reload, approve → appears for all, reject → overlay drops with notice, revert, public history panel, admin add-admin. Confirm tree presentation visually identical.
+
+## Risks & Open Questions
+| Risk | Mitigation |
+|------|------------|
+| Transaction mocking complexity in tests | Thin reusable `pool.connect` mock helper; keep `applyChange` query sequence simple |
+| Optimistic create temp-id ≠ approved real id | Overlay is transient; dropped on reconcile; refreshed `/api/tree` is source of truth (no id reconciliation) |
+| Stale approval (target deleted before approve) | `applyChange` detects missing target → 409; queue item marked rejected-with-reason |
+| `mutate.js` refactor touches 3 client files (main correctness risk) | No client unit tests → covered by manual verification checklist; keep intent fns returning the same state shape sidebar already builds |
+| `JWT_SECRET` unset in prod | Random per-boot fallback keeps app working; log a warning recommending a stable secret |
+| Open submission endpoint, no rate limiting | Accepted/deferred per architect (internal family site); noted in requirements Out of Scope v2 |
+| Public signup abuse | `POST /setup` hard-guarded to empty table only; all later admins created by authed admins |
+
+---
+
+# Architecture: Admin-Curated Public View & Simplified Public Form (2026-06-07)
+
+> Folded into Feature Cycle 2 **before execution**. Controlling input: the
+> "Admin-Curated Public View & Simplified Public Form" section of
+> `requirements.md` (2026-06-07). Builds directly on the Phase 2 auth + settings +
+> mutation machinery above; nothing prior is replaced.
+
+## Overview
+
+A single **auth-aware serializer** on the server is the one control point for what
+each client sees: admins (verified via the Phase 2 `attachAdmin` middleware) get
+the full person row; the public gets a stripped view. The frontend **render path
+is untouched** — `node-metrics.boxSpec` already builds the card's year line from
+whatever `birth_year`/`death_year` the API sends, and card height is **uniform**
+regardless of the year line (`uniformHeight()` always reserves the meta row), so
+omitting fields server-side produces the desired display with **zero layout or
+render-code change**. The card **edit form** renders two-tier: the public form is
+trimmed to Name + Gender + Spouse name/gender by **removing the detail-field group
+from the DOM** for non-admins, and a server-side **whitelist** independently drops
+any non-public field from non-admin writes (defence in depth, incl. under
+moderation). Schema adds one global setting (`tree.show_birth_year`) and two
+per-card admin flags (`person.death_year_hidden`, `person.spouse_death_year_hidden`).
+
+## Module Breakdown
+
+| Module/Component | Responsibility | New or Modified |
+|------------------|----------------|-----------------|
+| `src/serializers/person.js` | **The display control point.** `serializePerson(row, {isAdmin, showBirthYear})`: admin → full row incl. `*_death_year_hidden` flags; public → strip `birth_year`/`spouse_birth_year` when `!showBirthYear`, strip `death_year` when `death_year_hidden`, strip `spouse_death_year` when `spouse_death_year_hidden`, always strip `notes` and both `*_hidden` flags. `serializePersons(rows, opts)` maps a list. | New |
+| `src/lib/public-fields.js` | `pickPublicFields(body)` — whitelist `{name_en, name_hi, spouse_en, spouse_hi, spouse_gender, gender}`; returns a new object with only present whitelisted keys. Single source reused by direct writes + queued submissions. | New |
+| `src/middleware/validate.js` | Add `requireBoolean(field)` (optional boolean) for `death_year_hidden` / `spouse_death_year_hidden`. | Modified |
+| `src/routes/tree.js` (GET `/`) | Map persons through `serializePersons` using `req.admin` + `tree.show_birth_year`. Tree row already loaded; pass `show_birth_year` from it. | Modified |
+| `src/routes/persons.js` | POST/PATCH: if `!req.admin`, reduce body via `pickPublicFields` before insert/update (detail fields untouched on PATCH = preserved). Admin may set the two hide flags (validated). All responses serialized with `req.admin` + current `show_birth_year`. | Modified |
+| `src/routes/settings.js` (Phase 2) | `GET /` payload adds `show_birth_year`; `PATCH /` (admin) accepts/toggles `show_birth_year` alongside `moderation_enabled`. | Modified |
+| `src/routes/changes.js` (Phase 2) | On non-admin submit (`POST /`), reduce `payload` via `pickPublicFields` before queuing so a crafted payload can't inject detail fields into the review queue. | Modified |
+| `src/services/mutations.js` (Phase 2) | `applyChange` **update** path must **merge** payload onto the existing row (partial update), never full-replace — preserves admin-entered detail when a whitelisted public edit is approved. | Modified (constraint) |
+| `src/db/migrate.js` | Idempotent: `ALTER TABLE tree ADD COLUMN IF NOT EXISTS show_birth_year BOOLEAN NOT NULL DEFAULT FALSE;` and the two `person.*_death_year_hidden` columns. | Modified |
+| `public/index.html` | Wrap birth/death/living/sequence/notes/spouse-year inputs in a single `#admin-fields` container; add two admin-only "Hide death year" checkboxes (`#f-hide-death`, `#f-spouse-hide-death`) inside the person/spouse sections. | Modified |
+| `public/js/sidebar.js` | On `initSidebar`, if `!window.__moderation.admin` → remove `#admin-fields` from the DOM. `getSidebarEls`/`populateForm`/`collectForm` null-guard the now-optional elements; admin path reads/writes the two hide checkboxes. | Modified |
+| `public/js/main.js` (Phase 2) | Already loads `window.__moderation = {enabled, admin}`; the form tier + serializer rely on it. No new load needed beyond ensuring it resolves before the sidebar initializes. | Modified (ordering note) |
+| `public/js/admin/admin-app.js` (Phase 2) | Dashboard adds a "Show birth year" toggle (PATCH `/api/settings`) beside the moderation toggle. | Modified |
+| `public/js/tree-render.js`, `node-metrics.js` | **Unchanged** — display is fully driven by serialized data. | Unchanged |
+
+## Data Flow
+
+**Public tree load:**
+1. `GET /api/tree` → `attachAdmin` sets `req.admin` (null for visitors).
+2. Handler loads `tree` (has `show_birth_year`) + persons.
+3. `serializePersons(rows, {isAdmin: !!req.admin, showBirthYear: tree.show_birth_year})`.
+4. Client `cardSpec → boxSpec → formatYears` renders name + gender + (death year
+   only if the serializer included it). Birth year appears only when reveal ON.
+
+**Admin on the public page:** same route; `req.admin` truthy → serializer returns
+full rows → admin sees all years/notes. The sidebar (admin) keeps `#admin-fields`.
+
+**Non-admin edit (moderation OFF):** `sidebar.collectForm` (public tier) sends only
+public keys → `persons.PATCH` also `pickPublicFields` → partial UPDATE → detail
+columns untouched → response serialized (public).
+
+**Non-admin edit (moderation ON):** `mutate` → `POST /api/changes` → `pickPublicFields`
+on payload → queued. Admin approve → `applyChange` **merge** update → admin detail
+preserved.
+
+**Admin sets per-card death-year visibility:** admin form → `persons.PATCH` with
+`death_year_hidden`/`spouse_death_year_hidden` (validated booleans) → stored → public
+serializer strips that card's death year thereafter.
+
+## File Targets
+| File Path | Action | Description |
+|-----------|--------|-------------|
+| `src/serializers/person.js` | Create | Auth-aware field stripping (the display control point) |
+| `src/lib/public-fields.js` | Create | `pickPublicFields` whitelist |
+| `src/middleware/validate.js` | Modify | `requireBoolean` for hide flags |
+| `src/db/migrate.js` | Modify | Add `show_birth_year` + two `*_death_year_hidden` (idempotent) |
+| `src/routes/tree.js` | Modify | Serialize persons on GET |
+| `src/routes/persons.js` | Modify | Non-admin whitelist; admin hide flags; serialize responses |
+| `src/routes/settings.js` | Modify | `show_birth_year` in GET + PATCH |
+| `src/routes/changes.js` | Modify | Whitelist non-admin submission payloads |
+| `src/services/mutations.js` | Modify | Ensure update is merge (partial), not replace |
+| `public/index.html` | Modify | `#admin-fields` wrapper + two hide-death checkboxes |
+| `public/js/sidebar.js` | Modify | Two-tier form; remove `#admin-fields` for non-admins; null-guards |
+| `public/js/admin/admin-app.js` | Modify | "Show birth year" dashboard toggle |
+| `tests/serializer.test.js` | Create | Serializer field-stripping matrix |
+| `tests/persons.test.js` | Modify | Non-admin whitelist + admin hide-flag set |
+| `tests/settings.test.js` | Modify | `show_birth_year` default/expose/toggle-gated |
+
+## Schema Additions (additive + idempotent)
+```sql
+ALTER TABLE tree   ADD COLUMN IF NOT EXISTS show_birth_year          BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE person ADD COLUMN IF NOT EXISTS death_year_hidden        BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year_hidden BOOLEAN NOT NULL DEFAULT FALSE;
+```
+
+## External Touchpoints
+- None new. Reuses Phase 2 `attachAdmin`/cookie auth and `/api/settings`. All other
+  changes internal. No new deps.
+
+## DoD Traceability
+| Requirement (DoD) | Architectural Component |
+|--------------------|-------------------------|
+| Public form = Name + Gender + Spouse name/gender only | `#admin-fields` removed for non-admins (`sidebar.js`); `pickPublicFields` server guard |
+| Detail fields absent from public DOM + whitelisted server-side | `sidebar.js` DOM removal + `src/lib/public-fields.js` in persons + changes routes |
+| Public card = name + gender + death year where seeded | `serializePerson` (default keeps existing death year) + unchanged render path |
+| Birth year hidden by default; global admin reveal | `tree.show_birth_year` (default FALSE), `settings.js`, `serializePerson`, `admin-app.js` toggle |
+| Death year per-card admin force-hide | `person.*_death_year_hidden`, admin checkboxes, `serializePerson` strip |
+| Notes admin-only | `serializePerson` strips `notes` for public; admin form retains |
+| Auth-aware API exposure (omit for public, include for admin) | `serializePerson({isAdmin})` in `tree.js` + `persons.js` |
+| No layout/palette/geometry change | render path untouched; uniform card height already reserves meta row |
+| Migrations additive + idempotent | `migrate.js` `ADD COLUMN IF NOT EXISTS` |
+| Admin detail preserved on approve of public edit | `applyChange` merge-update semantics |
+
+## Test Strategy
+- **Chosen:** TS2 — extend the existing jest + supertest harness.
+- **Rationale:** Serializer + whitelist + settings are pure/route logic that fits
+  the mocked-`pool` pattern; the two-tier form has no DOM harness (manual, as Phase 2).
+- **Verification:**
+  - `tests/serializer.test.js`: admin → full row incl. flags; public with
+    `showBirthYear=false` → no birth fields; `death_year_hidden=true` → no
+    `death_year` (spouse symmetric); `notes` always stripped for public; flags
+    never leak to public.
+  - `tests/persons.test.js`: non-admin POST/PATCH with detail fields → persisted row
+    unchanged on those columns (whitelist drops them); admin PATCH sets hide flags;
+    responses serialized per requester.
+  - `tests/settings.test.js`: `GET` includes `show_birth_year` (default false);
+    `PATCH` toggling it requires admin (401 otherwise).
+  - Keep all existing tests green; ≥80% on new modules.
+  - Manual (Railway): birth years absent by default; admin reveal toggle flips them
+    globally; seeded death years visible; admin force-hide removes one card's death
+    year publicly while admin still sees it; non-admin form shows only
+    name/gender/spouse; admin form full; tree layout visually identical.
+
+## [AMENDED 2026-06-07b] Local Mock DB for Dev/Test
+
+- **Decision:** Add an in-memory Postgres (`pg-mem`, devDependency) so the full
+  app — admin auth, moderation queue, version history, field-visibility — runs
+  locally with **no Postgres install**. Goal: click-test admin features + UI
+  before Railway deploy.
+- **Mechanism:** `src/db/mock-pool.js` (new) builds a `pg-mem` instance and
+  returns a pg-compatible `Pool` via its `createPg()` adapter. `src/db/client.js`
+  branches on `process.env.USE_MOCK_DB` — mock pool when set, real `pg.Pool`
+  otherwise. The real production path is byte-for-byte unchanged when the flag is
+  absent. Launch via `scripts/dev-mock.js` (sets the flag, then requires
+  `server.js`) → `npm run dev:mock`. Cross-platform; no `cross-env` dep.
+- **Behaviour:** server's existing boot path runs migrations then auto-seeds from
+  `docs/seed.json` against the in-memory DB. Data is ephemeral (resets each
+  restart) — acceptable and desirable for iterative UI testing.
+- **Risk:** `pg-mem` may not implement every PG feature the schema uses
+  (`gen_random_uuid()`/pgcrypto, `ON CONFLICT`, `ALTER … IF NOT EXISTS`). Mitigation:
+  register/shim the needed functions in `mock-pool.js` during execute; this is the
+  primary acceptance gate for Phase 2.8a. If a construct is unsupported, shim it in
+  the adapter — never alter the real migration SQL.
+- **Scope guard:** dev/test only. Not bundled into the deploy path; `USE_MOCK_DB`
+  is never set on Railway.
+
+## Risks & Open Questions
+| Risk | Mitigation |
+|------|------------|
+| Admin on public page must get full data | `attachAdmin` runs before the tree route (Phase 2 mount order); serializer keys off `req.admin` |
+| Approve of a public edit could wipe admin detail | `applyChange` update is **merge/partial**, not full-replace; covered by a test |
+| Queued payload could smuggle detail fields | `pickPublicFields` applied in `changes.js` submit path, not only direct routes |
+| "Not in public DOM" vs hidden | Non-admins have `#admin-fields` **removed** from DOM; `collectForm`/`populateForm` null-guard |
+| Serializer must wrap **every** path persons are emitted | Audited paths: `tree.js` GET + `persons.js` POST/PATCH responses; change-history summaries already anonymized (no raw person emit) |
+| Boolean flag coercion (`'false'` string) | `requireBoolean` validates true booleans; routes coerce explicitly |

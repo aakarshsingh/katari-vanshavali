@@ -15,6 +15,16 @@ function setState(partial) {
   return state;
 }
 
+// Last server-loaded tree (the base the optimistic overlay is merged over).
+let serverBase = { tree: null, persons: [], relationships: [] };
+
+// Re-render the tree as server data + any pending local overlay edits.
+function refreshWithOverlay() {
+  const merged = window.overlay ? window.overlay.applyOverlay(serverBase) : serverBase;
+  setState({ tree: merged.tree, persons: merged.persons, relationships: merged.relationships });
+}
+window.refreshWithOverlay = refreshWithOverlay;
+
 // Edit the integrated canvas title (only when unlocked). Writes the
 // active-language field.
 function editTitle() {
@@ -26,8 +36,8 @@ function editTitle() {
   if (v === null) return;
   const nv = v.trim();
   if (field === 'title_en' && !nv) return; // title_en must be non-empty
-  api.patchTree({ [field]: nv })
-    .then((r) => setState({ tree: r.tree }))
+  mutate.updateTitle(field, nv)
+    .then((r) => { if (!r.pending) setState({ tree: r.tree }); })
     .catch((e) => console.error('Title update failed:', e.message));
 }
 window.editTitle = editTitle;
@@ -42,20 +52,43 @@ function renderTitle() {
     : (state.tree.title_en || state.tree.title_hi || 'Vanshavali');
 }
 
+// Load moderation + admin state into a global the mutation chokepoint reads.
+// Any failure degrades to OFF / not-admin and never blocks the tree load.
+async function loadModerationState() {
+  const moderation = { enabled: false, admin: false };
+  try {
+    const settings = await api.getSettings();
+    moderation.enabled = settings.moderation_enabled === true;
+  } catch (err) {
+    console.warn('Settings load failed; moderation defaults OFF:', err.message);
+  }
+  try {
+    await api.me(); // 401 throws when not authenticated
+    moderation.admin = true;
+  } catch {
+    moderation.admin = false;
+  }
+  window.__moderation = moderation;
+  return moderation;
+}
+
 async function init() {
+  await loadModerationState();
   try {
     const data = await api.getTree();
-    setState({
-      tree: data.tree,
-      persons: data.persons,
-      relationships: data.relationships,
-    });
+    serverBase = { tree: data.tree, persons: data.persons, relationships: data.relationships };
+    refreshWithOverlay(); // server data + any pending local edits
     if (data.persons.length === 0) {
       showEmptyHint();
     } else {
       hideEmptyHint();
       console.log(`Tree loaded: ${data.persons.length} persons`);
       focusPerson('Bade Lal Singh');
+    }
+    // Drop overlay entries the server has resolved, then re-render if changed.
+    if (window.overlay) {
+      const changed = await window.overlay.reconcile();
+      if (changed) refreshWithOverlay();
     }
   } catch (err) {
     console.error('Failed to load tree:', err.message);
@@ -258,8 +291,8 @@ function wireTitleEdit() {
     // Server requires title_en non-empty; revert an attempt to clear it.
     if (field === 'title_en' && !newTitle) { renderTitle(); return; }
     try {
-      const { tree } = await api.patchTree({ [field]: newTitle });
-      setState({ tree });
+      const result = await mutate.updateTitle(field, newTitle);
+      if (!result.pending) setState({ tree: result.tree });
     } catch (err) {
       console.error('Failed to update title:', err.message);
       renderTitle();
@@ -312,4 +345,5 @@ function wireExportDialog() {
 }
 
 window.__state = state;
+window.__moderation = { enabled: false, admin: false };
 document.addEventListener('DOMContentLoaded', init);

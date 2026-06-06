@@ -2,6 +2,14 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/client');
 const { requireName, requireValidYear, requireUUID, requireGender, requireValidSequence } = require('../middleware/validate');
+const { applyChange, withTransaction, PERSON_FIELDS } = require('../services/mutations');
+const { recordPending, recordApplied } = require('../services/changelog');
+
+// True when moderation is ON for the (single) tree.
+async function moderationOn() {
+  const { rows } = await pool.query('SELECT moderation_enabled FROM tree LIMIT 1');
+  return rows[0] ? rows[0].moderation_enabled === true : false;
+}
 
 router.post(
   '/',
@@ -13,41 +21,32 @@ router.post(
   requireGender('spouse_gender'),
   requireValidSequence('sequence'),
   async (req, res) => {
-    const {
-      name_en, name_hi, birth_year, death_year, spouse_en, spouse_hi,
-      spouse_birth_year, spouse_death_year, spouse_gender, gender, notes,
-      deceased, spouse_deceased, sequence,
-    } = req.body;
+    const payload = {};
+    for (const f of [...PERSON_FIELDS, 'parent_id']) {
+      if (req.body[f] !== undefined) payload[f] = req.body[f];
+    }
     try {
-      const treeResult = await pool.query('SELECT id FROM tree LIMIT 1');
-      if (!treeResult.rows[0]) return res.status(400).json({ error: 'No tree exists yet' });
-      const tree_id = treeResult.rows[0].id;
-      const result = await pool.query(
-        `INSERT INTO person
-          (tree_id, name_en, name_hi, birth_year, death_year, spouse_en, spouse_hi,
-           spouse_birth_year, spouse_death_year, spouse_gender, gender, notes,
-           deceased, spouse_deceased, sequence)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
-        [
-          tree_id,
-          name_en.trim(),
-          name_hi || null,
-          birth_year || null,
-          death_year || null,
-          spouse_en || null,
-          spouse_hi || null,
-          spouse_birth_year || null,
-          spouse_death_year || null,
-          spouse_gender || null,
-          gender || 'M',
-          notes || null,
-          deceased === true,
-          spouse_deceased === true,
-          sequence || null,
-        ]
-      );
-      res.status(201).json(result.rows[0]);
+      if ((await moderationOn()) && !req.admin) {
+        const tree = await pool.query('SELECT id FROM tree LIMIT 1');
+        const cr = await recordPending(null, {
+          tree_id: tree.rows[0] ? tree.rows[0].id : null,
+          op_type: 'create', entity: 'person', payload,
+          client_token: req.body.client_token, submitter_note: req.body.submitter_note,
+        });
+        return res.status(202).json({ status: 'pending', id: cr.id });
+      }
+      const result = await withTransaction(async (client) => {
+        const r = await applyChange(client, { op_type: 'create', entity: 'person', payload });
+        await recordApplied(client, {
+          tree_id: r.after.person.tree_id, op_type: 'create', entity: 'person',
+          target_id: r.after.person.id, payload, after_snapshot: r.after,
+          resolved_by: req.admin ? req.admin.id : null,
+        });
+        return r;
+      });
+      res.status(201).json(result.after.person);
     } catch (err) {
+      if (err.message === 'No tree exists') return res.status(400).json({ error: 'No tree exists yet' });
       console.error('POST /api/persons error:', err.message);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -65,30 +64,31 @@ router.patch(
   requireValidSequence('sequence'),
   async (req, res) => {
     const { id } = req.params;
-    const allowed = [
-      'name_en', 'name_hi', 'birth_year', 'death_year', 'spouse_en', 'spouse_hi',
-      'spouse_birth_year', 'spouse_death_year', 'spouse_gender', 'gender', 'notes',
-      'deceased', 'spouse_deceased', 'sequence',
-    ];
-    const updates = [];
-    const values = [];
-    let idx = 1;
-    for (const field of allowed) {
-      if (req.body[field] !== undefined) {
-        updates.push(`${field} = $${idx++}`);
-        values.push(req.body[field]);
-      }
+    const payload = {};
+    for (const f of PERSON_FIELDS) {
+      if (req.body[f] !== undefined) payload[f] = req.body[f];
     }
-    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
-    values.push(id);
+    if (Object.keys(payload).length === 0) return res.status(400).json({ error: 'No fields to update' });
     try {
-      const result = await pool.query(
-        `UPDATE person SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
-        values
-      );
-      if (!result.rows[0]) return res.status(404).json({ error: 'Person not found' });
-      res.json(result.rows[0]);
+      if ((await moderationOn()) && !req.admin) {
+        const cr = await recordPending(null, {
+          op_type: 'update', entity: 'person', target_id: id, payload,
+          client_token: req.body.client_token, submitter_note: req.body.submitter_note,
+        });
+        return res.status(202).json({ status: 'pending', id: cr.id });
+      }
+      const result = await withTransaction(async (client) => {
+        const r = await applyChange(client, { op_type: 'update', entity: 'person', target_id: id, payload });
+        await recordApplied(client, {
+          tree_id: r.after.tree_id, op_type: 'update', entity: 'person', target_id: id,
+          payload, before_snapshot: r.before, after_snapshot: r.after,
+          resolved_by: req.admin ? req.admin.id : null,
+        });
+        return r;
+      });
+      res.json(result.after);
     } catch (err) {
+      if (err.code === 'NOT_FOUND') return res.status(404).json({ error: 'Person not found' });
       console.error('PATCH /api/persons/:id error:', err.message);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -98,10 +98,24 @@ router.patch(
 router.delete('/:id', requireUUID('id'), async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pool.query('DELETE FROM person WHERE id = $1 RETURNING id', [id]);
-    if (!result.rows[0]) return res.status(404).json({ error: 'Person not found' });
-    res.json({ deleted: result.rows[0].id });
+    if ((await moderationOn()) && !req.admin) {
+      const cr = await recordPending(null, {
+        op_type: 'delete', entity: 'person', target_id: id,
+        client_token: req.body.client_token, submitter_note: req.body.submitter_note,
+      });
+      return res.status(202).json({ status: 'pending', id: cr.id });
+    }
+    await withTransaction(async (client) => {
+      const r = await applyChange(client, { op_type: 'delete', entity: 'person', target_id: id });
+      await recordApplied(client, {
+        tree_id: r.before.person.tree_id, op_type: 'delete', entity: 'person', target_id: id,
+        before_snapshot: r.before, resolved_by: req.admin ? req.admin.id : null,
+      });
+      return r;
+    });
+    res.json({ deleted: id });
   } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ error: 'Person not found' });
     console.error('DELETE /api/persons/:id error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -1,5 +1,6 @@
 async function apiFetch(path, options = {}) {
   const res = await fetch(path, {
+    credentials: 'same-origin', // send the admin auth cookie on same-origin calls
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   });
@@ -49,5 +50,43 @@ const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     });
+  },
+
+  // --- Settings ---
+  getSettings() {
+    return apiFetch('/api/settings');
+  },
+
+  // --- Auth ---
+  authStatus() {
+    return apiFetch('/api/auth/status');
+  },
+
+  login(username, password) {
+    return apiFetch('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  },
+
+  logout() {
+    return apiFetch('/api/auth/logout', { method: 'POST' });
+  },
+
+  me() {
+    return apiFetch('/api/auth/me');
+  },
+
+  // --- Moderation queue / history ---
+  submitChange(change) {
+    return apiFetch('/api/changes', { method: 'POST', body: JSON.stringify(change) });
+  },
+
+  myChanges(token) {
+    return apiFetch(`/api/changes/mine?token=${encodeURIComponent(token)}`);
+  },
+
+  appliedChanges() {
+    return apiFetch('/api/changes/applied');
   },
 };

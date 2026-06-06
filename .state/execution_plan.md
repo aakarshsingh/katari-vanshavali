@@ -1990,3 +1990,1170 @@ Local verification = `npm test` only (no local Postgres; migration self-applies 
 - 6 new tests: comparator (3) + render-order (3: all-numbered, numbered-before-unnumbered, birth-year tie).
 - No deviations from plan.
 
+---
+
+# Execution Plan: Phase 2 — Admin & Moderation
+
+## Objective
+Add admin auth (first-run signup + accounts) and an edit-moderation pipeline
+(queue + version history) without changing the public tree's presentation.
+
+## Current Baseline
+Phase 1 complete; 32/32 tests pass. API is fully open (no auth). Mutations go
+directly from client (`sidebar.js`, `context-menu.js`, `main.js`) → `api.js` →
+`src/routes/{persons,relationships,tree}.js` → Postgres. `server.js` auto-seeds
+from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocked.
+
+## Rules
+- One phase active at a time. Wait for architect approval before each.
+- Maintain style per `.state/conventions.md` (kebab files, camelCase, immutable
+  client state, files <400 lines, validate inputs, raw-object API responses).
+- No public-facing visual changes to the tree. Moderation default OFF →
+  behaviour stays identical until an admin enables it.
+- 3-Strike Rule: 3 consecutive test/build failures → STOP, document, wait.
+- Commit only when architect asks. Stage with explicit file paths.
+- Before a phase, assess session fit; recommend splitting if too large.
+- All migrations additive + idempotent. No secrets in source (env only).
+
+## Standard Self-Audit (applies to every phase)
+- [ ] Only the phase's target files touched
+- [ ] No public-facing tree visual changes without approval
+- [ ] Matches conventions.md
+- [ ] No hardcoded secrets/tokens (env only)
+- [ ] No sensitive data in logs/errors (no password hashes, no tokens)
+- [ ] External input validated at boundaries
+- [ ] Error handling present; errors return raw `{error}` objects
+- [ ] No unjustified new dependencies
+- [ ] Tests pass (backend phases) / `node --check` + render-smoke clean (frontend)
+- [ ] Changes are the minimum necessary
+
+## Phase Summary
+| Phase | Name | Status |
+|-------|------|--------|
+| 2.0 | Test harness extension + deps | Pending |
+| 2.1 | Schema migration (admin_user, change_request, moderation flag) | Pending |
+| 2.2 | Auth credentials + middleware | Pending |
+| 2.3 | Auth routes + server wiring | Pending |
+| 2.4 | Settings route (moderation toggle) | Pending |
+| 2.5 | Mutation apply service + changelog | Pending |
+| 2.6 | Changes routes (submit/list/applied/mine/approve/reject/revert) | Pending |
+| 2.7 | Moderation branch in persons/relationships/tree routes | Pending |
+| 2.8 | Cleanup — remove seed | Pending |
+| 2.8a | Local in-memory DB (pg-mem) adapter + `dev:mock` | Pending |
+| 2.9 | Client API wrappers + moderation state load | Pending |
+| 2.10 | mutate.js chokepoint + refactor call-sites | Pending |
+| 2.11 | overlay.js optimistic cache + toast + reconcile | Pending |
+| 2.12 | Public history panel | Pending |
+| 2.13 | Admin page (signup/login/dashboard/queue/history/revert) | Pending |
+| 2.14 | Visibility schema — show_birth_year + two death-hide flags | Pending |
+| 2.15 | Serializer + pickPublicFields whitelist + requireBoolean (+ unit tests) | Pending |
+| 2.16 | Wire serializer/whitelist into tree GET + persons routes (+ tests) | Pending |
+| 2.17 | settings show_birth_year + changes whitelist + applyChange merge (+ test) | Pending |
+| 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Pending |
+| 2.19 | Admin "Show birth year" dashboard toggle | Pending |
+| 2.20 | Local round-trip test on mock DB (manual E2E) | Pending |
+
+> **Phases 2.8a + 2.20 (added 2026-06-07b):** Local mock-DB testing track. **2.8a**
+> adds an in-memory Postgres (`pg-mem`) behind `USE_MOCK_DB` + a `dev:mock` launcher,
+> sequenced after the backend phases (2.1–2.8) and before the client/admin UI phases
+> (2.9+) so admin features and UI are locally click-testable as they land. **2.20**
+> is the end-of-cycle full manual round-trip on the mock DB. Controlling input: the
+> "[AMENDED 2026-06-07b]" sections of `architecture_decisions.md` and `requirements.md`.
+
+> **Phases 2.14–2.19 (added 2026-06-07):** Admin-Curated Public View & Simplified
+> Public Form. Depend on auth (`req.admin`, 2.2–2.3), settings (2.4), changes/apply
+> (2.5–2.6), moderation-state load (2.9), and the admin dashboard (2.13) — hence
+> sequenced last. Controlling inputs: the 2026-06-07 sections of `requirements.md`
+> and `architecture_decisions.md`.
+
+## Phase Details
+
+### Phase 2.0: Test harness extension + deps
+
+**Status:** Completed
+
+**Target Files:**
+- `package.json` — modify (add deps)
+- `tests/helpers/db-mock.js` — create
+
+**Changes:**
+- Add deps `bcryptjs`, `jsonwebtoken`, `cookie-parser` (`npm install`).
+- Create `tests/helpers/db-mock.js`: export factory returning a mock `pool` with
+  `query` (jest.fn) and `connect` (jest.fn → `{ query: jest.fn(), release: jest.fn() }`)
+  so transactional `applyChange` can be tested.
+
+**Verification:**
+- [x] `npm install` succeeds; deps appear in `package.json`.
+- [x] `npm test` → still 32/32 (helper not yet imported anywhere).
+
+**Definition of Done:**
+- [x] Deps installed; transaction mock helper available for later phases.
+
+**Self-Audit:** standard + confirm no production code imports the test helper.
+- [x] Only target files touched (`package.json`, `package-lock.json`, `tests/helpers/db-mock.js`)
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md (kebab file, camelCase factories)
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated at boundaries (n/a — test helper)
+- [x] Error handling present (n/a — test helper)
+- [x] New deps justified (auth deps required by Phase 2.2–2.3 plan)
+- [x] Tests pass — 32/32
+- [x] Changes minimum necessary
+- [x] No production code imports the test helper (grep-confirmed: only available to tests)
+
+**Completion Record:**
+- Implementation notes: Installed `bcryptjs@^3.0.3`, `jsonwebtoken@^9.0.3`,
+  `cookie-parser@^1.4.7` (17 transitive packages). Created
+  `tests/helpers/db-mock.js` exporting `createDbMock()` (pool with `query` jest.fn
+  + `connect` resolving to a `{ query, release }` client mock; client also exposed
+  via `pool.__client` for transactional assertions) and `createClientMock()`.
+  Shape matches `src/db/client` (pg.Pool). Not in jest's `*.test.js` testMatch, so
+  it is not run as a suite. `npm test` → 32/32.
+- Deviations from plan: None.
+- Field notes: `bcryptjs` (pure-JS, no native build) chosen over `bcrypt` —
+  correct for Railway/Windows-dev parity. 1 moderate npm-audit advisory in a
+  transitive dep (no criticals; same posture as Phase 0).
+
+---
+
+### Phase 2.1: Schema migration
+
+**Status:** Completed
+
+**Target Files:**
+- `src/db/migrate.js` — modify
+
+**Changes:**
+- Add idempotent: `ALTER TABLE tree ADD COLUMN IF NOT EXISTS moderation_enabled BOOLEAN NOT NULL DEFAULT FALSE`.
+- `CREATE TABLE IF NOT EXISTS admin_user (...)` per architecture schema.
+- `CREATE TABLE IF NOT EXISTS change_request (...)` + the two indexes, per schema.
+- Place beside existing ALTERs; keep the migration log line.
+
+**Verification:**
+- [x] `node --check src/db/migrate.js` passes. → `CHECK_OK`
+- [x] `node -e "require('./src/db/migrate')"` loads without error. → `REQUIRE_OK`
+- [x] SQL reviewed: every statement is `IF NOT EXISTS`; safe to re-run.
+- [ ] (Manual, on deploy) migrate runs clean against the live DB. — deferred to
+      deploy / Phase 2.8a mock-DB boot.
+
+**Definition of Done:**
+- [x] New tables/column defined idempotently; existing 32 tests unaffected (32/32).
+
+**Self-Audit:** standard + idempotency confirmed.
+- [x] Only target file touched (`src/db/migrate.js`)
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md
+- [x] No hardcoded secrets/tokens (env only)
+- [x] No sensitive data in logs/errors
+- [x] External input validated at boundaries (n/a — DDL)
+- [x] Error handling present (existing `require.main` catch covers standalone run)
+- [x] No unjustified new dependencies
+- [x] Tests pass — 32/32
+- [x] Changes minimum necessary
+- [x] Idempotency confirmed — every statement `IF NOT EXISTS`, safe to re-run
+
+**Completion Record:**
+- Implementation notes: Added a "Phase 2" block in `runMigrations()` after the
+  `relationship` table and before the completion log: `ALTER TABLE tree ADD COLUMN
+  IF NOT EXISTS moderation_enabled BOOLEAN NOT NULL DEFAULT FALSE`, then
+  `CREATE TABLE IF NOT EXISTS admin_user`, `CREATE TABLE IF NOT EXISTS
+  change_request`, and the two `CREATE INDEX IF NOT EXISTS` statements. DDL copied
+  verbatim from architecture "Schema Additions". Placed after `tree`/`admin_user`
+  exist so `change_request`'s FKs (`tree(id)`, `admin_user(id)`) resolve.
+- Deviations from plan: None.
+- Field notes: Live-DB run still deferred, but Phase 2.8a (pg-mem boot) will now
+  exercise this migration in-memory locally — earlier real-execution signal than
+  waiting for Railway.
+
+---
+
+### Phase 2.2: Auth credentials + middleware
+
+**Status:** Completed
+
+**Target Files:**
+- `src/auth/credentials.js` — create
+- `src/middleware/auth.js` — create
+- `tests/auth.test.js` — create (unit portion)
+
+**Changes:**
+- `credentials.js`: `hashPassword`, `verifyPassword` (bcryptjs); `signToken(payload)`,
+  `verifyToken(token)` (jsonwebtoken). Secret from `process.env.JWT_SECRET`; if
+  unset, generate a random secret once at module load + `console.warn`. 7-day expiry.
+- `auth.js`: `attachAdmin` (read `req.cookies.token` → verify → `req.admin = {id,username}`
+  or null; never throw); `requireAdmin` (→ 401 `{error}` when `!req.admin`).
+- Tests: hash/verify round-trip; token sign/verify; verifyToken rejects garbage;
+  requireAdmin 401 path with a stub req/res.
+
+**Verification:**
+- [x] `npm test` includes new auth unit tests, all green; 32 prior still pass. → 40/40.
+- [x] `node --check` on both source files → `CHECK_OK`.
+
+**Definition of Done:**
+- [x] Password hashing + JWT cookie verification available and tested.
+
+**Self-Audit:** standard + no secret logged; hashes never returned.
+- [x] Only target files touched
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md (CommonJS, camelCase, small files)
+- [x] No hardcoded secrets/tokens — `JWT_SECRET` from env; random per-boot fallback
+- [x] No sensitive data in logs/errors — warn never prints the secret; no hash logging
+- [x] External input validated (verifyToken/verifyPassword guard empty/garbage)
+- [x] Error handling present — verifyToken never throws (try/catch → null)
+- [x] No unjustified new deps (bcryptjs/jsonwebtoken added in 2.0)
+- [x] Tests pass — 40/40
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `credentials.js` — bcryptjs `SALT_ROUNDS=10`; JWT 7-day
+  expiry; secret from `JWT_SECRET` else `crypto.randomBytes(32)` per-boot with a
+  one-line warn (value never logged). `verifyPassword` returns false on empty
+  inputs; `verifyToken` returns null on any failure (never throws) so middleware
+  is safe. `auth.js` — `attachAdmin` sets `req.admin={id,username}` from a valid
+  cookie else null, guarding missing `req.cookies`; `requireAdmin` → 401 raw
+  `{error}`. 8 new tests cover hash/verify, token round-trip, garbage rejection,
+  and both middleware paths. `JWT_SECRET` pinned in the test for determinism.
+- Deviations from plan: None.
+- Field notes: Token payload carries `{id, username}`; `attachAdmin` keys off
+  `payload.id` — auth routes (2.3) must sign with that shape.
+
+---
+
+### Phase 2.3: Auth routes + server wiring
+
+**Status:** Completed
+
+**Target Files:**
+- `src/routes/auth.js` — create
+- `server.js` — modify
+- `tests/auth.test.js` — extend (route portion)
+
+**Changes:**
+- `auth.js` router: `GET /status` (`{needsSetup: admin count==0, authed: !!req.admin}`),
+  `POST /setup` (create first admin ONLY if table empty, else 409; set cookie),
+  `POST /login` (verify creds → set httpOnly SameSite=Lax cookie; 401 generic on fail),
+  `POST /logout` (clear cookie), `GET /me` (`{username}` or 401),
+  `POST /admins` (`requireAdmin`; create another admin; 409 on dup username).
+  Validate username/password presence + min length.
+- `server.js`: `app.use(cookieParser())`, `app.use(attachAdmin)` before routers;
+  mount `/api/auth`.
+
+**Verification:**
+- [x] Tests: setup creates first admin; second setup → 409; login ok/fail; me
+      with/without cookie; admins requires auth. All green + 32 prior pass. → 53/53.
+- [x] `node --check` on `auth.js` + `server.js` → `CHECK_OK`.
+
+**Definition of Done:**
+- [x] Full auth lifecycle works; admin can be created via signup then add more.
+
+**Self-Audit:** standard + setup is hard-guarded to empty table; cookie httpOnly.
+- [x] Only target files touched
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors (login failure is generic; no hash echoed)
+- [x] External input validated (username ≥3, password ≥8; presence on login)
+- [x] Error handling — try/catch → 500 raw `{error}` on every async route
+- [x] No unjustified new deps (cookie-parser added 2.0)
+- [x] Tests pass — 53/53
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `auth.js` — cookie name `token`, httpOnly + SameSite=Lax,
+  `secure` in production, 7-day maxAge; token signed `{id, username}` (matches
+  2.2 `attachAdmin`). `/setup` hard-guarded by `adminCount()===0` → 409 otherwise.
+  `/login` returns generic 401 on unknown user or bad password (no enumeration).
+  `/admins` gated by `requireAdmin`, 409 on duplicate. `server.js` mounts
+  `cookieParser()` then `attachAdmin` before all routers, and `/api/auth` first.
+  13 supertest route tests added (status/setup/login/logout/me/admins incl. 401/409
+  paths) using the `{query: jest.fn()}` pool mock + signed cookies.
+- Deviations from plan: None.
+- Field notes: `res.clearCookie` must NOT receive `maxAge` (Express deprecation) —
+  split into `COOKIE_BASE` (clear) vs `COOKIE_OPTS` (set). api.test.js now triggers
+  the benign "JWT_SECRET not set" warn because it boots the server without setting
+  it — expected degraded-mode behavior, not a failure.
+
+---
+
+### Phase 2.4: Settings route (moderation toggle)
+
+**Status:** Completed
+
+**Target Files:**
+- `src/routes/settings.js` — create
+- `server.js` — modify (mount)
+- `tests/changes.test.js` — create (settings portion)
+
+**Changes:**
+- `GET /api/settings` (public) → `{ moderation_enabled }` from the single tree row.
+- `PATCH /api/settings` (`requireAdmin`) → set `moderation_enabled` (boolean validate).
+- Mount in `server.js`.
+
+**Verification:**
+- [x] Tests: GET returns flag; PATCH without auth → 401; PATCH with admin → toggles.
+      Also: GET default false (no row), PATCH 400 non-boolean, PATCH 404 no row. → 59/59.
+- [x] `node --check` on `settings.js` + `server.js` → `CHECK_OK`.
+
+**Definition of Done:**
+- [x] Moderation flag readable publicly, toggle gated to admin.
+
+**Self-Audit:** standard.
+- [x] Only target files touched
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated (`typeof === 'boolean'` guard)
+- [x] Error handling — try/catch → 500; 404 when no tree row
+- [x] No unjustified new deps
+- [x] Tests pass — 59/59
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `settings.js` — `GET /` public, defaults `moderation_enabled`
+  to `false` when no tree row exists; `PATCH /` gated by `requireAdmin`, strict
+  `typeof === 'boolean'` validation (rejects `'yes'`/strings with 400), 404 when no
+  tree row. Mounted at `/api/settings` after `/api/auth`. 6 tests added to
+  `tests/changes.test.js` (new suite) covering public read, default, 401/400/404,
+  and admin toggle.
+- Deviations from plan: None.
+- Field notes: `show_birth_year` will join this route's `GET`/`PATCH` payload in
+  Phase 2.17 — keep the boolean-validation pattern consistent there.
+
+---
+
+### Phase 2.5: Mutation apply service + changelog
+
+**Status:** Completed
+
+**Target Files:**
+- `src/services/mutations.js` — create
+- `src/services/changelog.js` — create
+- `tests/changes.test.js` — extend (service portion)
+
+**Changes:**
+- `mutations.applyChange(client, {op_type, entity, target_id, payload})` — performs
+  the live write for person/relationship/tree; for `create person` with
+  `payload.parent_id`, also inserts the relationship. Returns `{before, after}`.
+  Runs against a passed pg client (caller owns the transaction).
+- `mutations.withTransaction(fn)` — `pool.connect` → BEGIN/COMMIT/ROLLBACK wrapper.
+- `changelog.recordApplied`, `recordPending`, `summarize(before,after)`.
+- Tests use the Phase 2.0 connect mock: create/update/delete apply paths; revert
+  uses before_snapshot; missing target → throws (→ 409 later).
+
+**Verification:**
+- [x] Tests for each op path green; transaction rollback on error covered. → 71/71.
+- [x] `node --check` on both service files → `CHECK_OK`.
+
+**Definition of Done:**
+- [x] Single transactional writer + changelog helpers, reused by routes + approve/revert.
+
+**Self-Audit:** standard + input validated before write; no partial writes (tx).
+- [x] Only target files touched
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md (small focused services)
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated (missing target → NOT_FOUND; name_en required)
+- [x] Error handling — withTransaction ROLLBACK on any error; never partial
+- [x] No unjustified new deps
+- [x] Tests pass — 71/71
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `mutations.js` — `applyChange(client, change)` dispatches
+  person/relationship/tree × create/update/delete, returning `{before, after}`
+  snapshots. Person create optionally bundles a relationship (`parent_id`); accepts
+  explicit `id`/`relationship_id`/`x_pos`/`y_pos` so revert-of-delete can restore
+  faithfully. Update fetches `before` first and throws `NOT_FOUND` (→ 409 later) on
+  missing target. Delete captures person + its relationships before cascade.
+  `withTransaction(fn)` does connect→BEGIN→fn→COMMIT, ROLLBACK+rethrow on error,
+  release in finally. `changelog.js` — `recordPending`/`recordApplied` insert
+  change_request rows; JSONB fields `JSON.stringify`'d via `toJson` (node-pg would
+  otherwise mis-serialize objects/arrays). `summarize` gives a compact
+  create/delete/update diff for history. Tests use `createClientMock` for
+  applyChange and the `createDbMock` connect path for withTransaction.
+- Deviations from plan: None. (Plan's `applyChange(client, …)` client-owns-tx
+  signature kept exactly; `recordApplied` also accepts an explicit `status` for the
+  revert audit row in 2.6.)
+- Field notes: `before/after` shapes differ by entity (person create →
+  `{person, relationship}`; person delete before → `{person, relationships[]}`;
+  relationship → `{relationship}`; tree/person update → full rows). Phase 2.6 revert
+  must branch on entity/op to invert. JSONB params must be stringified — reuse
+  `toJson` if more change_request writers appear.
+
+---
+
+### Phase 2.6: Changes routes
+
+**Status:** Completed
+
+**Target Files:**
+- `src/routes/changes.js` — create
+- `server.js` — modify (mount)
+- `tests/changes.test.js` — extend (routes portion)
+
+**Changes:**
+- `POST /api/changes` (public): validate payload via existing validators per
+  entity/op; `recordPending` with `client_token`; return `{id, status:'pending'}`.
+- `GET /api/changes?status=pending` (`requireAdmin`): queue newest-first.
+- `GET /api/changes/applied` (public): applied+reverted rows, **anonymized**
+  (omit `resolved_by`/username), with before→after summary.
+- `GET /api/changes/mine?token=` (public): rows for that client_token + statuses.
+- `POST /:id/approve` (`requireAdmin`): optional edited payload; `withTransaction`
+  → `applyChange` → mark applied + before/after + resolved_by/at. 409 if target gone.
+- `POST /:id/reject` (`requireAdmin`): status=rejected + resolved_by/at.
+- `POST /:id/revert` (`requireAdmin`): restore before_snapshot via applyChange;
+  mark original `reverted`; append a new applied audit row describing the revert.
+
+**Verification:**
+- [x] Tests: submit→pending; approve applies+records; reject; revert restores;
+      `/applied` has no admin identity; `/mine` filters by token; admin guards 401. → 81/81.
+- [x] `node --check` on `changes.js` + `server.js` → `CHECK_OK`.
+
+**Definition of Done:**
+- [x] Queue + history + approve/reject/revert endpoints complete and tested.
+
+**Self-Audit:** standard + public log anonymized; admin endpoints guarded.
+- [x] Only target files touched
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors — `/applied` omits `resolved_by`/identity
+- [x] External input validated (`validateChange` on submit; `requireUUID` on :id)
+- [x] Error handling — approve/revert run in `withTransaction`; NOT_FOUND→409; 500 fallback
+- [x] No unjustified new deps
+- [x] Tests pass — 81/81
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `changes.js` — public `POST /` validates via `validateChange`
+  (op/entity enums, UUID target for update/delete, name_en for person-create, year
+  ranges, rel parent/child UUIDs) then `recordPending` → `{id, status:'pending'}`
+  (201). Admin `GET /?status=` queue newest-first. Public `GET /applied` maps rows
+  through `summarize`, omitting `resolved_by`/identity (anonymized). Public
+  `GET /mine?token=` filters by `client_token`. `POST /:id/approve` (admin):
+  reads the row, 409 if not pending, applies the (optionally edited) payload inside
+  `withTransaction`, marks the row applied with before/after snapshots + resolver.
+  `POST /:id/reject` flips pending→rejected (409 otherwise). `POST /:id/revert`
+  (admin): 409 unless applied; `revertChange` inverts the op via `applyChange`
+  (create→delete, delete→re-create person + its relationships, update→restore
+  before), marks original `reverted`, and appends a new applied audit row with
+  swapped snapshots and `INVERSE_OP` op_type (stays within the op_type CHECK).
+  Mounted at `/api/changes`. 10 route tests added (incl. tx-path approve/revert via
+  the connect mock).
+- Deviations from plan: Revert audit row uses the **inverse op_type**
+  (create→delete etc.) rather than a literal `'revert'`, because the
+  `change_request.op_type` CHECK only allows create/update/delete. Same intent,
+  schema-safe.
+- Field notes: Route registration order — literal GETs (`/applied`, `/mine`) coexist
+  with `/` and the `POST /:id/*` actions without collision (no `GET /:id` exists).
+  Tests must use real-UUID `:id` values (requireUUID) — `c1`-style ids 400.
+
+---
+
+### Phase 2.7: Moderation branch in mutation routes
+
+**Status:** Completed
+
+**Target Files:**
+- `src/routes/persons.js` — modify
+- `src/routes/relationships.js` — modify
+- `src/routes/tree.js` — modify
+- `tests/api.test.js` / `tests/changes.test.js` — extend
+
+**Changes:**
+- In each mutating handler, after validation: if `moderation_enabled` AND
+  `!req.admin` → create a pending `change_request` (via changelog) and return
+  `202 {status:'pending', id}` instead of writing. Else → `applyChange` +
+  `recordApplied` and return the entity as today.
+- Keep existing response shapes for the applied path (tests depend on them).
+- Read moderation flag once per request (single tree row).
+
+**Verification:**
+- [x] Existing person/relationship/tree tests still pass (moderation OFF path). → 83/83.
+- [x] New tests: moderation ON + no admin → 202 pending, no DB mutation
+      (`pool.connect` not called); moderation ON + admin → applies.
+- [x] `node --check` on all three routes → `CHECK_OK`.
+
+**Definition of Done:**
+- [x] Direct routes correctly fork queue vs apply; every applied change logged.
+
+**Self-Audit:** standard + applied path response unchanged (no client breakage).
+- [x] Only target files touched (persons/relationships/tree routes + api.test.js)
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated (existing validators retained ahead of the fork)
+- [x] Error handling — apply path in withTransaction; NOT_FOUND→404, 23505→409, 500 fallback
+- [x] No unjustified new deps
+- [x] Tests pass — 83/83
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: Each mutating handler now reads moderation once
+  (`moderationOn()` — a 4-line local helper in each route file) and forks:
+  moderation ON && `!req.admin` → `recordPending` → `202 {status:'pending', id}`,
+  no live write (verified `pool.connect` uncalled). Otherwise the write runs through
+  `withTransaction(applyChange + recordApplied)`, preserving the exact prior response
+  shapes — POST person → 201 `result.after.person`; PATCH person → `result.after`;
+  DELETE → `{deleted:id}`; POST rel → 201 `result.after.relationship`; PATCH tree →
+  `{tree: result.after}`. Error mapping preserved: missing person/rel/tree →
+  NOT_FOUND→404, duplicate rel → 23505→409, no-tree-on-create → 400. Every applied
+  mutation now also writes an `applied` change_request (history). `api.test.js`
+  rewritten onto the `createDbMock` connect-capable mock with sequenced
+  `__client.query`, plus 2 new moderation-fork tests.
+- Deviations from plan: `moderationOn()` duplicated across the three route files
+  (4 lines each) rather than a shared module — staying within the phase's target
+  file list (a shared helper would be a new file = out of scope). Acceptable, minimal.
+- Field notes: Admins bypass the queue even when moderation is ON (write-through +
+  logged), matching the architecture. The applied path always emits a history row,
+  so 2.12's public History panel has data regardless of moderation state.
+
+---
+
+### Phase 2.8: Cleanup — remove seed
+
+**Status:** Completed
+
+**Target Files:**
+- `server.js` — modify (remove `seedIfEmpty`, `runSeed` import/call)
+- `src/db/seed.js` — delete
+- `scripts/seed-pdf.js` — delete
+- `package.json` — modify (remove `seed`, `seed:pdf` scripts)
+- (keep `docs/seed.json`)
+
+**Changes:**
+- Remove the seed import, `SEED_PATH`, `seedIfEmpty`, and its call in `start()`.
+- Delete the two seed source files; drop the two npm scripts.
+
+**Verification:**
+- [x] `node --check server.js` passes; `node -e "require('./server')"` loads. → `REQUIRE_OK`.
+- [x] `npm test` → all green (api.test imports server). → 83/83.
+- [x] grep: no remaining references to `seed.js`/`runSeed`/`seedIfEmpty`. → none found.
+
+**Definition of Done:**
+- [x] Seed runtime + scripts gone; `docs/seed.json` retained; app boots.
+
+**Self-Audit:** standard + no dangling requires.
+- [x] Only target files touched (server.js, package.json, deleted seed files)
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated (n/a — removal)
+- [x] Error handling — `start()` still try/catch around `runMigrations` + listen
+- [x] No unjustified new deps
+- [x] Tests pass — 83/83
+- [x] Changes minimum necessary
+- [x] No dangling requires (also removed now-unused `fs` + `pool` imports)
+
+**Completion Record:**
+- Implementation notes: Removed `seedIfEmpty`, `SEED_PATH`, and the `await
+  seedIfEmpty()` call from `server.js`; dropped the now-unused `fs`, `runSeed`, and
+  `pool` imports (pool was only referenced by the seed check). `start()` now just
+  `runMigrations()` → `listen`. Deleted `src/db/seed.js` and `scripts/seed-pdf.js`
+  via `git rm`. Removed `seed` and `seed:pdf` npm scripts. `docs/seed.json` retained
+  (gitignored; reused by the 2.8a dev launcher). grep confirms no remaining
+  `runSeed`/`seedIfEmpty`/`seed.js`/`seed-pdf` references.
+- Deviations from plan: Also removed `fs`/`pool` imports left unused by the seed
+  removal — within `server.js` (a listed target) and necessary to avoid dead code.
+- Field notes: `pdf-parse` remains a production dependency though its only consumer
+  (`seed-pdf.js`) is gone — left in place intentionally; pruning deps is out of this
+  phase's scope. Flag for a future cleanup if desired.
+
+---
+
+### Phase 2.8a: Local in-memory DB (pg-mem) adapter + `dev:mock`
+
+**Status:** Completed
+**Reason:** (Added 2026-06-07b) Enable click-testing admin features + UI locally
+with no Postgres install. Sequenced after backend phases (2.1–2.8) and before the
+client/admin UI phases (2.9+). Because 2.8 removed the production auto-seed, the
+dev launcher must seed the in-memory DB itself.
+
+**Target Files:**
+- `package.json` — modify (add `pg-mem` devDependency + `dev:mock` script)
+- `src/db/mock-pool.js` — create
+- `src/db/client.js` — modify
+- `scripts/dev-mock.js` — create
+
+**Changes:**
+- `package.json`: add `pg-mem` to devDependencies; script
+  `"dev:mock": "node scripts/dev-mock.js"`.
+- `src/db/mock-pool.js`: create a `pg-mem` DB instance; register any functions the
+  schema needs that pg-mem lacks (at minimum `gen_random_uuid()` / pgcrypto; shim
+  others as discovered). Export a factory returning a pg-compatible `Pool` via
+  `db.adapters.createPg()`. The same backing instance must persist across all
+  pool checkouts (single module-level instance).
+- `src/db/client.js`: if `process.env.USE_MOCK_DB` is truthy, export the mock pool
+  from `mock-pool.js`; otherwise export the real `pg.Pool` exactly as today
+  (production path byte-for-byte unchanged when flag absent).
+- `scripts/dev-mock.js`: set `process.env.USE_MOCK_DB='1'`; `runMigrations()`;
+  then a small self-contained `seedFromJson()` that reads `docs/seed.json` and
+  inserts tree+persons+relationships via the pool (independent of the deleted
+  production seeder); then `require('../server')` to start the app. Log a clear
+  "MOCK DB — in-memory, data resets on restart" banner.
+
+**Verification:**
+- [x] `node --check src/db/mock-pool.js src/db/client.js scripts/dev-mock.js` passes. → `CHECK_OK`.
+- [x] `npm install` adds `pg-mem` (devDep only). → `pg-mem@^3.0.14` in devDependencies.
+- [x] `npm test` → still all green (`USE_MOCK_DB` unset under jest). → 83/83.
+- [x] `npm run dev:mock` boots: migrations run, seed loads, server listens; **no**
+      `DATABASE_URL` / Postgres required. → health ok; seeded 44 persons / 43 rels.
+- [x] Manual: `GET /api/tree` returns seeded data from the in-memory DB;
+      `GET /api/auth/status` → `{needsSetup:true}`.
+
+**Definition of Done:**
+- [x] App runs fully locally on the in-memory DB via `npm run dev:mock`; production
+      DB path untouched; tests green.
+
+**Self-Audit Checklist:**
+- [x] Only target files touched (package.json, mock-pool.js, client.js, dev-mock.js)
+- [x] No public-facing tree visual changes
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries (n/a — dev tooling)
+- [x] Error handling present (dev-mock top-level catch → exit 1)
+- [x] New dep (`pg-mem`) is devDependency only; not in production path
+- [x] `node --check` clean + `npm test` green
+- [x] Changes are minimum necessary
+- [x] Amendment doesn't break other completed phases (real client path unchanged)
+
+**Completion Record:**
+- Implementation notes: `mock-pool.js` builds a single cached `pg-mem` instance and
+  returns its `createPg()` Pool. pg-mem implements few natives, so registered:
+  `gen_random_uuid` (**`impure:true`** — critical; without it pg-mem reuses one UUID
+  and every insert collides on the PK), `btrim` (title-normalisation migration), and
+  a no-op `pgcrypto` extension so `CREATE EXTENSION IF NOT EXISTS pgcrypto` succeeds.
+  `client.js` branches on `USE_MOCK_DB` (mock pool) vs the unchanged real `pg.Pool`.
+  `scripts/dev-mock.js` sets the flag first, runs the real migration, then a
+  self-contained `seedFromJson()` (maps seed short-ids → UUIDs; independent of the
+  deleted production seeder), then `app.listen` (server.js left untouched —
+  `require.main` guard means requiring it doesn't auto-start). Verified live: the
+  whole app runs on pg-mem with no Postgres.
+- Deviations from plan: dev-mock listens itself rather than relying on server's
+  `start()` — keeps `server.js` out of this phase's target list. Same outcome.
+- Field notes: **The `impure:true` flag is the key pg-mem gotcha** — found via a live
+  boot smoke test (duplicate-PK on the 2nd seeded person). Always smoke-boot, not
+  just `node --check`. `docs/seed.json` is stale (title "Genealogy" vs live "Katari
+  Lineage"); refreshing it from a real Railway dump is pending (see resume.md / 2.20).
+
+---
+
+### Phase 2.9: Client API wrappers + moderation state load
+
+**Status:** Completed
+
+**Target Files:**
+- `public/js/api.js` — modify
+- `public/js/main.js` — modify
+
+**Changes:**
+- `api.js`: add `getSettings`, auth (`authStatus`, `login`, `logout`, `me`),
+  changes (`submitChange`, `myChanges`, `appliedChanges`). Add
+  `credentials:'same-origin'` to `apiFetch`.
+- `main.js init`: load `GET /api/settings` + `GET /api/auth/me` → set
+  `window.__moderation = { enabled, admin }` (default `{enabled:false, admin:false}`
+  on failure). No behaviour change yet (chokepoint added next phase).
+
+**Verification:**
+- [x] `node --check` on both files; render-smoke still passes. → `CHECK_OK`, 83/83.
+- [~] Manual: `window.__moderation` populated in console — deferred to 2.20 (browser);
+      server side confirmed live (`/api/settings`, `/api/auth/me`).
+
+**Definition of Done:**
+- [x] Client knows moderation + admin state; new API wrappers available.
+
+**Self-Audit:** standard + failure of new fetches degrades to OFF, never blocks load.
+- [x] Only target files touched (api.js, main.js)
+- [x] No public-facing tree visual changes (no behaviour change this phase)
+- [x] Matches conventions.md
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated (n/a — read wrappers)
+- [x] Error handling — both state loads wrapped; degrade to OFF/not-admin
+- [x] No unjustified new deps
+- [x] node --check + render-smoke green
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `api.js` — added `credentials:'same-origin'` to `apiFetch`
+  (sends the admin cookie) and wrappers `getSettings`, `authStatus`, `login`,
+  `logout`, `me`, `submitChange`, `myChanges`, `appliedChanges`. `main.js` —
+  `loadModerationState()` runs first in `init()`, setting
+  `window.__moderation = {enabled, admin}` from `/api/settings` + `/api/auth/me`;
+  both calls are independently try/caught so failure degrades to OFF/not-admin and
+  never blocks the tree load. A default `window.__moderation` is also set at module
+  load. No behaviour change yet — the chokepoint that reads this lands in 2.10.
+- Deviations from plan: None.
+- Field notes: `me()` throwing 401 is the not-admin signal (expected, not an error) —
+  swallowed silently; only settings failure warns.
+
+---
+
+### Phase 2.10: mutate.js chokepoint + refactor call-sites
+
+**Status:** Completed
+
+**Target Files:**
+- `public/js/mutate.js` — create
+- `public/js/sidebar.js` — modify
+- `public/js/context-menu.js` — modify
+- `public/js/main.js` — modify (title)
+- `public/index.html` — modify (include mutate.js before sidebar/context-menu/main)
+
+**Changes:**
+- `mutate.js` intent fns returning the new `{persons, relationships}` (or pending
+  marker): `createPersonWithParent(data, parentId)`, `updatePerson(id, data, reparent)`,
+  `deletePerson(id)`, `updateTitle(field, value)`. Each: if
+  `window.__moderation.enabled && !admin` → `api.submitChange(...)` (one bundled
+  request) → return pending marker; else existing direct `api.*` calls.
+- Refactor `sidebar.handleSubmit`/`handleDelete`, `context-menu.ctxDeletePerson`,
+  `main.editTitle`/`wireTitleEdit` to delegate to `mutate.*`.
+
+**Verification:**
+- [x] `node --check` all; render-smoke passes. → `CHECK_OK`, 83/83.
+- [~] Manual (moderation OFF): add/edit/delete/re-parent/title behave exactly as
+      today — deferred to 2.20 (browser). OFF path calls the same `api.*`/state
+      logic as before, just relocated into `mutate.*`.
+
+**Definition of Done:**
+- [x] Single mutation chokepoint; OFF path identical to current behaviour.
+
+**Self-Audit:** standard + OFF path is behaviour-preserving; immutable state updates kept.
+- [x] Only target files touched (mutate.js, sidebar.js, context-menu.js, main.js, index.html)
+- [x] No public-facing tree visual changes (OFF path behaviour-preserving)
+- [x] Matches conventions.md (immutable state arrays kept)
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated (unchanged — server validators + existing form checks)
+- [x] Error handling — call sites keep their try/catch + error surfaces
+- [x] No unjustified new deps
+- [x] node --check + render-smoke green
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `mutate.js` exposes `window.mutate` with
+  `createPersonWithParent(data, parentId)`, `updatePerson(id, data, reparent)`,
+  `deletePerson(id)`, `updateTitle(field, value)`. `_isQueued()` =
+  `__moderation.enabled && !admin`. Direct path runs the original `api.*` calls and
+  returns the recomputed `{persons, relationships}` (or `{tree}`); queued path posts
+  one bundled `api.submitChange(...)` and returns `{pending:true, id, change}`.
+  Refactored `sidebar.handleSubmit` (new + edit/re-parent via a `reparent` arg),
+  `sidebar.handleDelete`, `context-menu.ctxDeletePerson`, and both title editors in
+  `main.js` to delegate and only `setState` when `!result.pending`. `mutate.js`
+  added to `index.html` before sidebar/context-menu/main.
+- Deviations from plan: None. (Queued path returns a marker only; optimistic
+  overlay + toast arrive in 2.11 as planned — `_token()` already reads
+  `window.overlay.token()` when present.)
+- Field notes: Re-parent is intentionally a **direct-path-only** concern here; under
+  moderation the queued person-update submits field changes (relationship re-parenting
+  via the queue is out of scope for this cycle).
+
+---
+
+### Phase 2.11: overlay.js optimistic cache + toast + reconcile
+
+**Status:** Completed
+
+**Target Files:**
+- `public/js/overlay.js` — create
+- `public/js/main.js` — modify (apply overlay in load/setState; call reconcile)
+- `public/index.html` — modify (include overlay.js)
+
+**Changes:**
+- `overlay.js`: generate/persist `client_token`; store/list/remove pending overlay
+  entries in localStorage; `applyOverlay(state)` merges pending edits over server
+  data with a "pending" marker; `reconcile()` calls `api.myChanges(token)` →
+  applied→remove, rejected→remove + notice, pending→keep; `toast(msg)` helper.
+- `mutate.js` (created prior) writes overlay entries + shows "Submitted to admin
+  for approval" toast on the pending path.
+- `main.init`: after loading tree, `applyOverlay` + `reconcile`.
+
+**Verification:**
+- [x] `node --check`; render-smoke passes. → `CHECK_OK`, 83/83.
+- [x] Smoke (dev:mock): `/js/overlay.js` + `/js/mutate.js` serve 200; index
+      references overlay.js; `/api/tree` returns 49 persons.
+- [~] Manual (moderation ON, anonymous) toast/pending/reconcile flow — deferred to
+      2.20 (browser).
+
+**Definition of Done:**
+- [x] Contributors keep seeing their own pending edits; self-heals on resolve.
+
+**Self-Audit:** standard + overlay never sent to other visitors; localStorage only.
+- [x] Only target files touched (overlay.js, main.js, index.html) + mutate.js*
+- [x] No public-facing tree visual changes (overlay only affects the local viewer)
+- [x] Matches conventions.md (immutable merge; small module)
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data in logs/errors
+- [x] External input validated (reconcile tolerates failure; JSON.parse guarded)
+- [x] Error handling — reconcile try/catch → warn; never blocks load
+- [x] No unjustified new deps
+- [x] node --check + render-smoke green
+- [x] Changes minimum necessary
+
+**Completion Record:**
+- Implementation notes: `overlay.js` exposes `window.overlay` —
+  `token()` (persistent per-browser `client_token` in localStorage),
+  `add/list/remove/clear`, `applyOverlay(base)` (immutably merges pending
+  create/update/delete-person and tree-update entries over the server base;
+  pending creates get a temp id, pending deletes are filtered out, updates tagged
+  `__pending`), `reconcile()` (via `api.myChanges(token)` → applied/reverted drop,
+  rejected drop + notice, pending keep), and an inline-styled `toast()` (no CSS
+  coupling, app palette). `main.js` keeps a `serverBase` snapshot and
+  `refreshWithOverlay()` (= setState(applyOverlay(base))); `init` sets the base,
+  renders merged, then reconciles and re-renders if changed. `mutate.js` pending
+  path routed through a new `_queue()` helper that submits, records the overlay
+  entry, toasts "Submitted to admin for approval", and calls
+  `window.refreshWithOverlay()`. `overlay.js` included before `mutate.js` in
+  index.html.
+- Deviations from plan: *`mutate.js` was edited (not in the 2.11 target-file list,
+  but the phase's Changes section explicitly assigns it the overlay-write + toast
+  responsibility). Flagging for transparency — same intent, scoped to the pending
+  path only.
+- Field notes: Pending nodes carry `__pending` in state but the renderer doesn't
+  style them yet (would require a `tree-render.js` hook, out of scope) — the toast is
+  the primary feedback; visible per-node pending styling is a candidate follow-up.
+  Reconcile is reload-driven (per architecture), not real-time.
+
+---
+
+### Phase 2.12: Public history panel
+
+**Status:** Pending
+
+**Target Files:**
+- `public/js/history.js` — create
+- `public/index.html` — modify (panel markup + include + unobtrusive trigger)
+
+**Changes:**
+- `history.js`: fetch `api.appliedChanges()`; render a read-only, anonymized
+  list (what/when/before→after) in a toggleable panel. No revert controls.
+- `index.html`: minimal trigger (e.g. a small "History" control in existing
+  toolbar area) + panel container; no change to tree rendering.
+
+**Verification:**
+- [ ] `node --check`; render-smoke passes.
+- [ ] Manual: panel lists applied changes, no admin names, no revert button.
+
+**Definition of Done:**
+- [ ] Public version history visible and read-only.
+
+**Self-Audit:** standard + no admin identity shown; tree visuals unchanged.
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.13: Admin page
+
+**Status:** Pending
+
+**Target Files:**
+- `public/admin.html` — create
+- `public/css/admin.css` — create
+- `public/js/admin/admin-api.js` — create
+- `public/js/admin/admin-app.js` — create
+
+**Changes:**
+- `admin-api.js`: fetch wrappers (status/setup/login/logout/me/admins, settings
+  get/patch, changes list/applied/approve/reject/revert), same-origin credentials.
+- `admin-app.js`: view router — `status` → first-run **signup** / **login** /
+  **dashboard**. Dashboard: moderation toggle; pending **queue** with
+  approve / edit-then-approve / reject; **history** (full attribution) with
+  one-click **revert**; **add-admin** form.
+- `admin.html` + `admin.css`: standalone shell, vintage-consistent, isolated.
+
+**Verification:**
+- [ ] `node --check` on JS files.
+- [ ] Manual: visit `/admin` → first-run signup → dashboard; toggle moderation;
+      submit an anonymous edit elsewhere → appears in queue → approve/edit/reject;
+      history shows entries + revert works; add a second admin; logout.
+
+**Definition of Done:**
+- [ ] Full admin workflow operational end-to-end on the unlinked `/admin` page.
+
+**Self-Audit:** standard + admin assets isolated from main app; guards enforced server-side.
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.14: Visibility schema — show_birth_year + two death-hide flags
+
+**Status:** Pending
+
+**Target Files:**
+- `src/db/migrate.js` — modify
+
+**Changes:**
+- Add idempotent ALTERs beside the existing ones:
+  - `ALTER TABLE tree ADD COLUMN IF NOT EXISTS show_birth_year BOOLEAN NOT NULL DEFAULT FALSE`
+  - `ALTER TABLE person ADD COLUMN IF NOT EXISTS death_year_hidden BOOLEAN NOT NULL DEFAULT FALSE`
+  - `ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year_hidden BOOLEAN NOT NULL DEFAULT FALSE`
+- Keep the migration log line.
+
+**Verification:**
+- [ ] `node --check src/db/migrate.js` passes.
+- [ ] `node -e "require('./src/db/migrate')"` loads without error.
+- [ ] SQL reviewed: every new statement is `ADD COLUMN IF NOT EXISTS`; safe to re-run.
+- [ ] `npm test` → green (no behaviour change yet).
+
+**Definition of Done:**
+- [ ] Three columns defined idempotently, all defaulting to FALSE.
+
+**Self-Audit:** standard + idempotency confirmed; defaults match requirements
+(birth-year reveal OFF, force-hide OFF).
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.15: Serializer + whitelist + requireBoolean (+ unit tests)
+
+**Status:** Pending
+
+**Target Files:**
+- `src/serializers/person.js` — create
+- `src/lib/public-fields.js` — create
+- `src/middleware/validate.js` — modify
+- `tests/serializer.test.js` — create
+
+**Changes:**
+- `person.js`: `serializePerson(row, { isAdmin, showBirthYear })` →
+  - admin: return the row unchanged (incl. `death_year_hidden` /
+    `spouse_death_year_hidden`).
+  - public: shallow-copy, then `delete` `notes`, `death_year_hidden`,
+    `spouse_death_year_hidden`; if `!showBirthYear` delete `birth_year` +
+    `spouse_birth_year`; if `row.death_year_hidden` delete `death_year`; if
+    `row.spouse_death_year_hidden` delete `spouse_death_year`.
+  - `serializePersons(rows, opts)` maps the list. Pure, immutable (no row mutation).
+- `public-fields.js`: `PUBLIC_FIELDS = ['name_en','name_hi','spouse_en','spouse_hi','spouse_gender','gender']`;
+  `pickPublicFields(body)` returns a new object with only present whitelisted keys.
+- `validate.js`: add `requireBoolean(field)` — optional; if present and not a real
+  boolean → 400 `{error}`.
+
+**Verification:**
+- [ ] `node --check` on all three source files.
+- [ ] `tests/serializer.test.js` covers: admin full passthrough incl. flags; public
+      strips notes + flags always; `showBirthYear=false` strips both birth fields;
+      `death_year_hidden` strips `death_year` (spouse symmetric); input row not mutated.
+- [ ] `npm test` → all green (32 + new).
+
+**Definition of Done:**
+- [ ] Serializer, whitelist, and validator implemented and unit-tested; no route
+      wired yet.
+
+**Self-Audit:** standard + immutability (returns new objects); no field leak paths missed.
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.16: Wire serializer/whitelist into tree GET + persons routes (+ tests)
+
+**Status:** Pending
+
+**Target Files:**
+- `src/routes/tree.js` — modify
+- `src/routes/persons.js` — modify
+- `tests/persons.test.js` — modify
+
+**Changes:**
+- `tree.js` GET `/`: serialize persons via
+  `serializePersons(rows, { isAdmin: !!req.admin, showBirthYear: tree.show_birth_year })`.
+- `persons.js`:
+  - POST/PATCH: when `!req.admin`, reduce `req.body` through `pickPublicFields`
+    before building the insert/update (so non-admins can't write detail fields;
+    PATCH leaves omitted columns untouched).
+  - Allow admins to set `death_year_hidden` / `spouse_death_year_hidden`
+    (add to the PATCH `allowed` list + POST insert; validate with `requireBoolean`).
+  - Serialize every response with `{ isAdmin: !!req.admin, showBirthYear }` (read the
+    current `tree.show_birth_year` once per request).
+- Tests: non-admin POST/PATCH with detail fields → those columns unchanged; admin
+  PATCH sets hide flags; GET responses reflect requester (admin vs public).
+
+**Verification:**
+- [ ] `node --check` on both routes.
+- [ ] `npm test` → green incl. new persons assertions.
+- [ ] Manual reasoning: a visitor `GET /api/tree` (default) returns no `birth_year`
+      and no `notes`; admin returns full rows.
+
+**Definition of Done:**
+- [ ] Read + write person paths are auth-aware; non-admin writes whitelisted.
+
+**Self-Audit:** standard + every person-emitting response passes through the
+serializer; whitelist applied before DB write.
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.17: settings show_birth_year + changes whitelist + applyChange merge (+ test)
+
+**Status:** Pending
+
+**Target Files:**
+- `src/routes/settings.js` — modify
+- `src/routes/changes.js` — modify
+- `src/services/mutations.js` — modify
+- `tests/settings.test.js` — modify
+
+**Changes:**
+- `settings.js`: `GET /` payload adds `show_birth_year`; `PATCH /` (admin) accepts
+  `show_birth_year` (boolean, validated) alongside `moderation_enabled`.
+- `changes.js`: on non-admin `POST /` submit, reduce the `payload` via
+  `pickPublicFields` before queuing (defence in depth under moderation).
+- `mutations.js`: confirm/ensure `applyChange` update is a **partial merge** (only
+  keys present in payload are written) — never a full-row replace — so an approved
+  public edit preserves admin-entered detail (death year, notes, hide flags).
+- Tests: `GET /api/settings` includes `show_birth_year` default false; `PATCH`
+  toggling it returns 401 without admin; (if feasible with the mock) approving a
+  whitelisted change leaves untouched columns intact.
+
+**Verification:**
+- [ ] `node --check` on the three source files.
+- [ ] `npm test` → green incl. settings assertions.
+
+**Definition of Done:**
+- [ ] Birth-year reveal toggle exposed + gated; queued payloads whitelisted; merge
+      semantics guaranteed.
+
+**Self-Audit:** standard + admin-only PATCH enforced server-side; no detail-field
+loss on approve.
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.18: Two-tier edit form (#admin-fields + hide-death checkboxes)
+
+**Status:** Pending
+
+**Target Files:**
+- `public/index.html` — modify
+- `public/js/sidebar.js` — modify
+
+**Changes:**
+- `index.html`: wrap the detail inputs (birth, death + Living, sequence, notes,
+  spouse birth, spouse death + spouse Living) in a single `#admin-fields` container.
+  Add two admin-only "Hide death year" checkboxes: `#f-hide-death` (person section)
+  and `#f-spouse-hide-death` (spouse section).
+- `sidebar.js`:
+  - In `initSidebar`, if `!(window.__moderation && window.__moderation.admin)` →
+    remove `#admin-fields` from the DOM (`.remove()`), so detail inputs are absent
+    for non-admins (not merely hidden).
+  - `getSidebarEls`, `populateForm`, `collectForm`, `setLiving`, `setSpouseLiving`:
+    null-guard the now-optional elements; only include detail keys + the two hide
+    flags in the payload when the admin elements exist.
+  - Admin path: read/write `death_year_hidden` / `spouse_death_year_hidden` from the
+    new checkboxes.
+
+**Verification:**
+- [ ] `node --check public/js/sidebar.js`.
+- [ ] Manual (non-admin): open edit → only Name (EN/HI) + Gender + Married/Spouse
+      name/gender present; no birth/death/notes inputs in the DOM; save works.
+- [ ] Manual (admin): full form incl. the two hide-death checkboxes; toggling one
+      hides that card's death year on the public view.
+- [ ] Tree renders identically (no layout shift).
+
+**Definition of Done:**
+- [ ] Public form trimmed (DOM-level); admin form full with per-card death-hide.
+
+**Self-Audit:** standard + no detail inputs in public DOM; null-guards prevent
+errors when `#admin-fields` is absent; no render/layout change.
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.19: Admin "Show birth year" dashboard toggle
+
+**Status:** Pending
+
+**Target Files:**
+- `public/js/admin/admin-app.js` — modify
+- `public/js/admin/admin-api.js` — modify
+
+**Changes:**
+- `admin-api.js`: ensure the settings PATCH wrapper can send `show_birth_year`
+  (extend the existing settings call).
+- `admin-app.js`: dashboard adds a "Show birth year (global)" toggle beside the
+  moderation toggle; reads current value from `GET /api/settings`; on change →
+  `PATCH /api/settings { show_birth_year }`; reflects success/failure.
+
+**Verification:**
+- [ ] `node --check` on both files.
+- [ ] Manual: toggle ON → birth years appear across the public tree on reload;
+      toggle OFF → they disappear; value persists (re-fetch reflects it).
+
+**Definition of Done:**
+- [ ] Admin can flip global birth-year visibility from the dashboard; no redeploy.
+
+**Self-Audit:** standard + admin-only (route already `requireAdmin`); UI consistent
+with the moderation toggle.
+
+**Completion Record:** _(filled after verification)_
+
+---
+
+### Phase 2.20: Local round-trip test on mock DB (manual E2E)
+
+**Status:** Pending
+**Reason:** (Added 2026-06-07b) End-of-cycle full manual verification of the whole
+Phase 2 feature set against the in-memory DB (`npm run dev:mock`) before pushing to
+Railway. Catches integration issues that unit tests with a mocked pool cannot.
+
+**Target Files:**
+- `docs/local-testing.md` — create (the round-trip checklist, also future-reuse)
+
+**Changes:**
+- Write `docs/local-testing.md`: a step-by-step manual checklist run on
+  `npm run dev:mock`. Then execute it and record results.
+
+**Round-trip checklist (must all pass):**
+- [ ] App boots on mock DB; seeded tree renders; existing Phase-1 UI intact
+      (lock, search, collapse, minimap, export, lang toggle).
+- [ ] First-run admin signup works; second signup blocked; login/logout via
+      httpOnly cookie; `/admin` reachable, public tree needs no login.
+- [ ] Moderation OFF (default): edits write through immediately (public + admin).
+- [ ] Moderation ON: anonymous edit → 202 pending + "submitted for approval"
+      toast + optimistic local overlay; admin sees it in the queue.
+- [ ] Admin approve → change applied to tree; reject → discarded; both logged.
+- [ ] Version history: applied changes listed (anonymized publicly); admin revert
+      restores `before_snapshot`.
+- [ ] Field visibility: birth years hidden by default; admin global reveal toggle
+      flips them; seeded death years visible; admin per-card death force-hide
+      removes one card's death year publicly while admin still sees it; notes
+      admin-only.
+- [ ] Simplified public form: non-admin sees only name/gender/spouse; admin sees
+      full form; submitting public form cannot smuggle detail fields.
+- [ ] Tree layout/palette/export visually unchanged throughout.
+
+**Verification:**
+- [ ] Every checklist item above ticked, or failures logged as new defects/pivot.
+
+**Definition of Done:**
+- [ ] Full admin + visibility round-trip verified locally on the mock DB; results
+      recorded; remaining risk for Railway is config/seed only.
+
+**Self-Audit Checklist:**
+- [ ] Only target file touched (`docs/local-testing.md`)
+- [ ] No public-facing tree visual changes
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries (n/a — doc/manual)
+- [ ] Error handling present where needed (n/a)
+- [ ] No unjustified new dependencies
+- [ ] Findings recorded honestly (failures → defects/pivot, not glossed)
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+

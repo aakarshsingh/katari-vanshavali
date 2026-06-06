@@ -248,36 +248,21 @@ async function handleSubmit(e) {
   els.btnSave.disabled = true;
   try {
     if (sidebarMode === 'new') {
-      const person = await api.createPerson({ ...data, tree_id: window.__state.tree.id });
-      const newPersons = [...window.__state.persons, person];
-      let newRelationships = window.__state.relationships;
-
-      if (selectedParent) {
-        const relationship = await api.createRelationship(selectedParent, person.id);
-        newRelationships = [...newRelationships, relationship];
+      const result = await mutate.createPersonWithParent(data, selectedParent);
+      if (!result.pending) {
+        setState({ persons: result.persons, relationships: result.relationships });
       }
-
-      setState({ persons: newPersons, relationships: newRelationships });
     } else {
-      const person = await api.updatePerson(sidebarPersonId, data);
-      let newRelationships = window.__state.relationships;
-
-      // Re-parent if the parent selection changed.
-      const selectedParent = (els.parent && els.parent.value) || null;
-      if (selectedParent !== (sidebarOrigParentId || null)) {
-        const oldRel = newRelationships.find(r => r.child_id === sidebarPersonId);
-        if (oldRel) {
-          await api.deleteRelationship(oldRel.id);
-          newRelationships = newRelationships.filter(r => r.id !== oldRel.id);
-        }
-        if (selectedParent) {
-          const rel = await api.createRelationship(selectedParent, sidebarPersonId);
-          newRelationships = [...newRelationships, rel];
-        }
+      // Re-parent if the parent selection changed (applied on the direct path).
+      const selectedParentNow = (els.parent && els.parent.value) || null;
+      const reparent = {
+        changed: selectedParentNow !== (sidebarOrigParentId || null),
+        to: selectedParentNow,
+      };
+      const result = await mutate.updatePerson(sidebarPersonId, data, reparent);
+      if (!result.pending) {
+        setState({ persons: result.persons, relationships: result.relationships });
       }
-
-      const newPersons = window.__state.persons.map(p => p.id === person.id ? person : p);
-      setState({ persons: newPersons, relationships: newRelationships });
     }
     closeSidebar();
   } catch (err) {
@@ -294,14 +279,11 @@ async function handleDelete() {
   const els = getSidebarEls();
   els.btnDelete.disabled = true;
   try {
-    await api.deletePerson(sidebarPersonId);
-    const deletedId = sidebarPersonId;
-    const newPersons = window.__state.persons.filter(p => p.id !== deletedId);
-    const newRelationships = window.__state.relationships.filter(
-      r => r.parent_id !== deletedId && r.child_id !== deletedId
-    );
+    const result = await mutate.deletePerson(sidebarPersonId);
     closeSidebar();
-    setState({ persons: newPersons, relationships: newRelationships });
+    if (!result.pending) {
+      setState({ persons: result.persons, relationships: result.relationships });
+    }
   } catch (err) {
     showError(els.error, err.message || 'Delete failed.');
     els.btnDelete.disabled = false;

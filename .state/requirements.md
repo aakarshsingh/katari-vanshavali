@@ -110,11 +110,13 @@ Additive scope — sibling ordering + form tweak. No prior DoD item is removed.
 
 ```
 tree
-  id            UUID PK
-  title_en      TEXT
-  title_hi      TEXT
-  created_at    TIMESTAMPTZ
-  updated_at    TIMESTAMPTZ
+  id                  UUID PK
+  title_en            TEXT
+  title_hi            TEXT
+  moderation_enabled  BOOLEAN NOT NULL DEFAULT FALSE  -- [ADDED] Cycle 2
+  show_birth_year     BOOLEAN NOT NULL DEFAULT FALSE  -- [ADDED] 2026-06-07 global birth-year reveal
+  created_at          TIMESTAMPTZ
+  updated_at          TIMESTAMPTZ
 
 person
   id            UUID PK
@@ -130,7 +132,9 @@ person
   spouse_gender       TEXT      -- [AMENDED] added Pivot R2: 'M' | 'F' | 'other'
   gender        TEXT       -- 'M' | 'F' | 'other'
   sequence      INTEGER    -- [ADDED] Pivot R4: sibling order (≥1, nullable)
-  notes         TEXT
+  death_year_hidden         BOOLEAN NOT NULL DEFAULT FALSE  -- [ADDED] 2026-06-07 admin force-hide person death year
+  spouse_death_year_hidden  BOOLEAN NOT NULL DEFAULT FALSE  -- [ADDED] 2026-06-07 admin force-hide spouse death year
+  notes         TEXT       -- [VISIBILITY] 2026-06-07: admin-only; omitted from public API
   x_pos         FLOAT      -- persisted layout hint
   y_pos         FLOAT
 
@@ -176,3 +180,274 @@ relationship
 - jsPDF — PDF generation from canvas image
 - Noto Sans Devanagari — self-hosted under `/public/fonts/`
 - Existing tools surveyed: VanshApp, Hamare Riste, FamilyRoot — all mobile-first / GEDCOM-focused; ours is print-quality desktop-first
+
+---
+
+# Requirements: Admin & Moderation (Feature Cycle 2 — 2026-06-06)
+
+> New feature cycle, appended (not replacing) the completed v1 above. This
+> introduces the project's **first authentication layer** plus a moderation
+> (edit-approval) pipeline and version history. It deliberately **reverses** two
+> v1 constraints — see the amendment note below.
+
+## [AMENDED] v1 constraint reversal
+
+- v1 "**Auth: None**" / "Must NOT require login" applied to *editing the public
+  tree*. That stays true for visitors. But an **admin area is now login-gated.**
+  Public tree viewing + (when moderation is OFF) editing remain login-free.
+- v1 "Seed Data" + auto-seed are **retired** (see Cleanup section).
+
+## Purpose
+
+Let the family keep contributing edits while the tree owner retains control.
+When **moderation** is enabled, anonymous visitors' edits become **pending
+change requests** held for admin review instead of writing to the shared tree;
+the contributor still sees their own edit locally (so they aren't confused),
+labelled "submitted to admin for approval." Admins log in to a protected page to
+**approve / edit-then-approve / reject** queued changes, **toggle moderation**,
+and browse **version history** with one-click revert. The public landing page and
+tree presentation are otherwise **unchanged**.
+
+## Definition of Done
+
+### Authentication (admin accounts)
+- [ ] `admin_user` table: `id`, `username` UNIQUE, `password_hash` (bcrypt), `created_at`.
+- [ ] First admin bootstrapped on migrate from `ADMIN_USERNAME` / `ADMIN_PASSWORD`
+      env vars **only if no admin row exists** (idempotent; logs a warning if env
+      unset and table empty).
+- [ ] `POST /api/auth/login` (username+password) → sets a **signed JWT in an
+      httpOnly, SameSite=Lax cookie**; wrong creds → 401 (generic message).
+- [ ] `POST /api/auth/logout` clears the cookie.
+- [ ] `GET /api/auth/me` → `{ username }` when authed, `401`/null otherwise.
+- [ ] `requireAdmin` middleware guards every admin-only route (verifies JWT cookie).
+- [ ] Admin page can create additional admins (username + password).
+
+### Moderation setting
+- [ ] `tree.moderation_enabled BOOLEAN NOT NULL DEFAULT FALSE` (idempotent ALTER).
+- [ ] `GET /api/settings` (public) → `{ moderation_enabled }`.
+- [ ] `PATCH /api/settings` (admin only) toggles it.
+- [ ] Default **OFF** → behaviour identical to today until an admin turns it on.
+
+### Change pipeline (single source for queue + history)
+- [ ] `change_request` table: `id`, `tree_id`, `op_type` ('create'|'update'|'delete'),
+      `entity` ('person'|'relationship'), `target_id` (nullable for create),
+      `payload` JSONB (proposed fields), `before_snapshot` JSONB (captured at apply
+      time, for revert/history), `status`
+      ('pending'|'approved'|'rejected'|'applied'|'reverted'), `submitter_note` TEXT,
+      `client_token` TEXT (links an anonymous submission to its browser),
+      `resolved_by` UUID → admin_user (nullable), `submitted_at`, `resolved_at`.
+- [ ] **Moderation OFF or requester is admin** → mutation writes through to
+      `person`/`relationship` directly **and** records a `change_request` row with
+      `status='applied'` + `before_snapshot` (so history captures *every* change).
+- [ ] **Moderation ON and requester not admin** → mutation is **not** written to
+      the live tables; a `change_request` row is created `status='pending'` with the
+      caller's `client_token`; response signals "pending" (no live entity created).
+- [ ] Person/relationship create returns enough info for the client overlay (the
+      proposed payload + a pending request id) without a real DB id leaking as final.
+
+### Admin review (admin page)
+- [ ] `GET /api/changes?status=pending` (admin) → queue, newest first.
+- [ ] `POST /api/changes/:id/approve` (admin) — optional edited `payload` in body;
+      applies the mutation to live tables, captures `before_snapshot`, sets
+      `status='applied'`, `resolved_by`, `resolved_at`.
+- [ ] `POST /api/changes/:id/reject` (admin) → `status='rejected'` (+ resolved_by/at).
+- [ ] `POST /api/changes/:id/revert` (admin) — restores `before_snapshot` to live
+      tables and appends a **new** `status='applied'` (or `'reverted'`) audit row
+      describing the revert. Only valid for previously-applied changes.
+
+### Version history
+- [ ] **Public main page:** read-only audit log via `GET /api/changes/applied`
+      (applied + reverted rows, newest first: what/when/by-whom, before→after
+      summary). Surfaced behind an unobtrusive "History" control; **no revert**.
+- [ ] **Admin page:** same log **plus** the one-click **Revert** action.
+- [ ] Full-tree snapshot/restore points are **OUT of scope v1** (noted as a future
+      idea).
+
+### Public landing / tree (minimal, presentation unchanged)
+- [ ] Tree rendering, layout, palette, export — **no visual changes**.
+- [ ] When moderation is ON and a visitor saves an edit: show a non-blocking
+      "Submitted to admin for approval" toast/badge.
+- [ ] **Optimistic local cache:** the visitor's pending edits are stored in
+      `localStorage` keyed by a generated `client_token`, overlaid on the
+      server tree on load so the contributor keeps seeing their own change with a
+      "pending" marker. The shared tree other visitors load is unchanged.
+- [ ] On load, client calls `GET /api/changes/mine?token=…` to reconcile: items
+      now **applied** → drop the overlay (real data already reflects it);
+      **rejected** → drop the overlay and show a brief "not approved" notice;
+      still **pending** → keep the overlay marker.
+- [ ] Admin browsing the public page (authed) sees live data with no overlay.
+
+### Cleanup — retire seed functionality
+- [ ] Remove `seedIfEmpty` + the `runSeed` import/call from `server.js`.
+- [ ] Delete `src/db/seed.js` and `scripts/seed-pdf.js`.
+- [ ] Remove the `seed` / seed-related scripts from `package.json`.
+- [ ] **Keep** `docs/seed.json` as an offline data backup (no code references it).
+- [ ] Tests/build stay green after removal (`npm test` → still passes).
+
+## [ADDED] Admin-Curated Public View & Simplified Public Form (2026-06-07)
+
+> Folded into Feature Cycle 2 **before execution** (depends on the admin-auth and
+> `/api/settings` machinery introduced above). Members raised concerns about
+> personal details being public and showed little appetite for filling them in.
+> Resolution: the **public** experience collapses to a minimal contribute surface
+> (name + gender + spouse name) with detail fields **admin-only**; detail data is
+> **soft-hidden** from the public (kept in the DB, never deleted). The **admin**
+> experience retains the full form and sees everything.
+>
+> **Supersedes** the interim "auto-flex always-on death year" wording: death year
+> now shows publicly **only where a value is seeded** and the admin hasn't
+> force-hidden it; birth year shows publicly **only when an admin reveals it**.
+
+### Two-tier edit form (auth-aware) — the core change
+- [ ] The card edit form renders in two modes, decided by `GET /api/auth/me`:
+  - **Public (non-admin) form:** **Name (EN/HI + transliteration chips)**,
+    **Gender**, **Spouse name (EN/HI + chips)**, **Spouse gender**. Nothing else.
+  - **Admin form:** the **full** form as it exists today — adds Birth year, Death
+    year, Living/deceased toggles, Sequence, Notes, plus the new visibility
+    controls below.
+- [ ] Fields absent from the public form (birth/death year, living, sequence,
+      notes) are **never** present in the public DOM (not merely hidden) so they
+      cannot be submitted by non-admins or via a crafted change request.
+- [ ] Non-admin create/update payloads are **server-side whitelisted** to the
+      public fields; any other field in the payload is ignored (defence in depth,
+      especially under moderation).
+
+### Default public card display
+- [ ] A public card shows **Name + gender accent + death year where seeded**.
+      No birth year, no notes by default.
+- [ ] Death year on a public card renders **iff** a `death_year` (resp.
+      `spouse_death_year`) value exists **and** the admin has not force-hidden it.
+- [ ] Birth year renders on a public card **only when** the global reveal is ON.
+
+### Birth Year — global admin reveal toggle (default HIDDEN)
+- [ ] `tree.show_birth_year BOOLEAN NOT NULL DEFAULT FALSE` (idempotent ALTER).
+      Default **FALSE** = no birth years anywhere public on first deploy.
+- [ ] `GET /api/settings` (public) extends its payload with `show_birth_year`.
+- [ ] `PATCH /api/settings` (admin only) toggles `show_birth_year` (alongside
+      `moderation_enabled`).
+- [ ] When FALSE: `b. YYYY` suppressed on every card (person + spouse); and
+      `birth_year` / `spouse_birth_year` **omitted from public person API
+      responses** (not merely CSS-hidden). When TRUE: both render/return again.
+      Admin (authed) responses always include them.
+
+### Death Year — public where seeded, admin per-card force-hide
+- [ ] **Base rule:** a death year renders publicly wherever a value exists
+      ("keep the ones seeded"). No admin action needed for the common case.
+- [ ] **Admin override (per card):** `person.death_year_hidden BOOLEAN NOT NULL
+      DEFAULT FALSE` and `person.spouse_death_year_hidden BOOLEAN NOT NULL DEFAULT
+      FALSE` (idempotent ALTERs). When TRUE, that death year is **force-hidden**
+      publicly even though a value exists.
+- [ ] **Admin-only control:** a "Hide death year (admin)" checkbox in the admin
+      form — one in the person section, one in the spouse section.
+- [ ] **API exposure is auth-aware:** public person responses **omit** a
+      force-hidden death year; **admin (authed)** responses include the death year
+      **plus** the `*_death_year_hidden` flags.
+
+### Notes — admin-only (soft-hidden)
+- [ ] `notes` removed from the **public** form and **omitted from public** person
+      API responses. Data stays in the DB; admins still edit/see it.
+
+### Decisions for this sub-feature
+| Decision | Chosen | Alternatives | Rationale |
+|----------|--------|--------------|-----------|
+| Public form scope | Name + Gender + Spouse name/gender | Name+Gender only; full form | Members will add people + spouses but not details; keeps contribution friction low |
+| Detail fields (birth/death/living/seq/notes) | Admin-only; absent from public DOM + whitelisted server-side | CSS-hide; trust client | True soft-hide; non-admins can't submit them even under moderation |
+| Birth year public | Hidden by default; global admin reveal toggle | Per-card; hard-remove | One switch addresses the concern; reversible without redeploy; "start hidden" = the default |
+| Death year public | Show where seeded; admin per-card force-hide | Hidden-until-opt-in; always-on | Keeps seeded death years (deceased elders) visible; admin can suppress sensitive ones |
+| Notes | Admin-only, kept in DB | Delete column; keep public | Non-destructive; removes a field nobody fills publicly |
+| Hidden-data API exposure | Omit from public; include for admin | Always send + hide in CSS | Sensitive values never reach the public client |
+| Storage | Soft-hide flags/setting; data stays in DB | Null/delete columns | Non-destructive; instantly reversible |
+
+### Constraints for this sub-feature
+- Must NOT: delete or null any `birth_year` / `death_year` / `notes` data — soft-hide only.
+- Must NOT: emit birth year (when reveal OFF), a force-hidden death year, or notes
+  to the **public** (unauthed) API surface.
+- Must NOT: render detail-field inputs in the **public** form DOM.
+- Must NOT: accept non-whitelisted fields from non-admin create/update requests.
+- Must NOT: change the tree layout, palette, or card geometry — only which lines render.
+- Must: keep the new column/setting migrations additive + idempotent.
+- Must: default to birth-year reveal **OFF** and death-year force-hide **OFF** so a
+  fresh deploy shows name + gender + seeded death years only.
+- Must: gate the admin form + visibility controls on authenticated admin
+  (`GET /api/auth/me`), server-verified — not client trust alone.
+
+### Edge cases for this sub-feature
+- Non-admin opens edit while moderation OFF → sees only Name/Gender/Spouse; saves
+  write through (whitelisted) with no detail fields touched.
+- Non-admin under moderation submits a crafted payload with `death_year` → server
+  whitelist strips it before queuing; admin review never sees an injected detail.
+- Card with no death_year value → nothing to show; force-hide flag is a harmless no-op.
+- Birth-year reveal toggled ON→OFF → values reappear/disappear, no data change.
+- Admin force-hides a death year while birth-year reveal is OFF and the person has
+  no seeded death year → card renders name + gender only; layout must tolerate a
+  card with no year line (it already does today).
+- Admin editing the public page (authed) → sees the full admin form + all data.
+
+---
+
+## Decisions & Options
+
+| Decision | Chosen Option | Alternatives Considered | Rationale |
+|----------|--------------|------------------------|-----------|
+| Auth model | Admin accounts table (bcrypt) | Shared env password; HTTP Basic | Multiple named admins; enables per-admin attribution in history |
+| Session | Signed JWT in httpOnly cookie | Server session store; Basic Auth | Stateless, no store to run, easy logout |
+| First admin | Bootstrap from env on migrate if table empty | Manual SQL insert; signup page | Zero-touch deploy; no public signup surface |
+| Moderation default | OFF | ON | Preserve today's behaviour; owner opts in |
+| Queue + history | One `change_request` table (every mutation logged) | Separate audit table; event sourcing | One pipeline; applied rows *are* the history; revert via before_snapshot |
+| History depth | Public: log-only · Admin: log + per-change revert | Snapshots; no history | Matches owner's call; snapshots deferred |
+| Anonymous identity | Random `client_token` in localStorage | Cookies; accounts for visitors | Lets a visitor track only their own submissions, no login |
+| Pending cache life | Until admin resolves (reconcile on load) | Session-only; persist forever | Contributor never loses sight of their edit; self-heals on approve/reject |
+| Seed.json | Keep file, remove all code paths | Delete entirely | Cheap offline backup of original data |
+| New deps | `bcrypt` (or `bcryptjs`), `jsonwebtoken`, `cookie-parser` | hand-rolled crypto | Battle-tested; small footprint |
+
+## Constraints
+
+- Must NOT: change the public tree's visual presentation, layout, palette, or export.
+- Must NOT: require login to view the tree, or to edit when moderation is OFF.
+- Must NOT: write anonymous edits to live tables while moderation is ON.
+- Must NOT: expose a public admin-signup route.
+- Must NOT: hardcode admin credentials or JWT secret in source (env only:
+  `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`).
+- Must NOT: break the existing 32 tests or the additive/idempotent migration model.
+- Must: keep all new migrations additive + idempotent (`CREATE TABLE IF NOT EXISTS`,
+  `ADD COLUMN IF NOT EXISTS`) — railway.toml runs `migrate` before `start`.
+- Must: hash passwords (bcrypt), never store plaintext; cookie httpOnly + SameSite.
+- Must: validate all change-request payloads with the existing validators before apply.
+- Must: keep API responses as raw objects (project convention — no envelopes).
+- Must: degrade safely if `JWT_SECRET`/admin env are unset (admin area simply
+  unusable; public app unaffected).
+- [AMENDED 2026-06-07b] Should: be fully runnable locally without a Postgres
+  install, via an in-memory mock DB (`pg-mem`) behind a `USE_MOCK_DB` flag, so
+  admin features + UI can be click-tested before deploy. The mock path must not
+  alter the real migration SQL or the production DB code path, and `USE_MOCK_DB`
+  is never set in production.
+
+## Edge Cases
+
+- Approving a stale change whose target person was deleted meanwhile → reject-with-reason / 409, don't crash.
+- Two pending edits to the same person → each applied independently in approval order; `before_snapshot` captured at *apply* time, not submit time.
+- Delete approved after the row already changed → revert restores the captured snapshot.
+- Visitor clears localStorage → loses their pending overlay (acceptable; server still holds the request).
+- Moderation toggled OFF while items are pending → pending items remain reviewable; new edits write through.
+- Admin edits while moderation ON → write through + logged as applied (admins bypass the queue).
+
+## Out of Scope (v2)
+
+- Full-tree snapshot / restore-to-point (future idea, acknowledged).
+- Email notifications to admins about new submissions.
+- Granular roles/permissions beyond "admin".
+- Public visitor accounts / per-visitor profiles.
+- Editing conflict-resolution UI (last-approved-wins is acceptable).
+- Rate limiting (note: open submission endpoint — consider in a later pass).
+
+## References
+
+- `server.js` — wires routers; currently calls `seedIfEmpty` (to be removed).
+- `src/routes/persons.js`, `src/routes/relationships.js` — mutation routes to gate.
+- `src/db/migrate.js` — additive/idempotent migration pattern to follow.
+- `src/middleware/validate.js` — reuse validators for change-request payloads.
+- `public/js/api.js`, `public/js/main.js`, `public/js/sidebar.js` — client store +
+  edit flow to layer the optimistic overlay + "pending" toast onto.
+- `docs/seed.json` — retained backup; `src/db/seed.js`, `scripts/seed-pdf.js` — to delete.
+- Memory: `feedback_api_shape` (raw objects), `feedback_design_palette`,
+  `feedback_plan_first` (freeze plan before code).

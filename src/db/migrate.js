@@ -66,6 +66,42 @@ async function runMigrations() {
       )
     `);
 
+    // Phase 2: admin accounts + edit-moderation queue/history. All additive +
+    // idempotent. Moderation defaults OFF so behaviour is unchanged until enabled.
+    await client.query(`ALTER TABLE tree ADD COLUMN IF NOT EXISTS moderation_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_user (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS change_request (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tree_id UUID REFERENCES tree(id) ON DELETE CASCADE,
+        op_type TEXT NOT NULL CHECK (op_type IN ('create','update','delete')),
+        entity  TEXT NOT NULL CHECK (entity IN ('person','relationship','tree')),
+        target_id UUID,
+        payload JSONB,
+        before_snapshot JSONB,
+        after_snapshot  JSONB,
+        status TEXT NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending','approved','rejected','applied','reverted')),
+        submitter_note TEXT,
+        client_token TEXT,
+        resolved_by UUID REFERENCES admin_user(id),
+        submitted_at TIMESTAMPTZ DEFAULT now(),
+        resolved_at  TIMESTAMPTZ
+      )
+    `);
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_change_request_status ON change_request(status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_change_request_token  ON change_request(client_token)`);
+
     console.log('Migrations complete.');
   } finally {
     client.release();
