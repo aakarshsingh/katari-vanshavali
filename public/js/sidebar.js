@@ -40,6 +40,8 @@ function getSidebarEls() {
     spouseLiving: document.getElementById('f-spouse-living'),
     spouseDeathField: document.getElementById('spouse-death-field'),
     notes: document.getElementById('f-notes'),
+    hideDeath: document.getElementById('f-hide-death'),
+    spouseHideDeath: document.getElementById('f-spouse-hide-death'),
     married: document.getElementById('f-married'),
     spouseFields: document.getElementById('spouse-fields'),
     parent: document.getElementById('f-parent'),
@@ -49,6 +51,21 @@ function getSidebarEls() {
     btnClose: document.getElementById('sidebar-close'),
     error: document.getElementById('form-error'),
   };
+}
+
+// Two-tier form: non-admins get only Name + Gender + Spouse name/gender. The
+// detail inputs (.admin-only: birth/death/Living/sequence/notes/spouse years +
+// the two hide-death checkboxes) are REMOVED from the DOM for non-admins — not
+// merely hidden — so they can never be read or submitted. Applied lazily on
+// sidebar open (idempotent): `window.__moderation.admin` is resolved
+// asynchronously by main.loadModerationState() after DOMContentLoaded, so doing
+// this at init time would always see admin:false. Removal is permanent for the
+// session; admin status doesn't change mid-session.
+function applyAdminTier() {
+  const isAdmin = !!(window.__moderation && window.__moderation.admin);
+  if (!isAdmin) {
+    document.querySelectorAll('#person-form .admin-only').forEach((el) => el.remove());
+  }
 }
 
 function showError(el, msg) {
@@ -87,38 +104,49 @@ function collectForm(els) {
   const genderEl = els.form.querySelector('[name="gender"]:checked');
   const spouseGenderEl = els.form.querySelector('[name="spouse_gender"]:checked');
   const married = !!(els.married && els.married.checked);
-  const deceased = !(els.living && els.living.checked);          // unchecked Living = deceased
-  const spouseDeceased = married && !(els.spouseLiving && els.spouseLiving.checked);
-  // When not married, spouse data is cleared; death year only when "Deceased".
-  return {
+
+  // Public tier (always present): name + gender + spouse name/gender.
+  const data = {
     name_en: els.nameEn.value.trim(),
     name_hi: els.nameHi.value.trim() || null,
-    birth_year: els.birth.value ? parseInt(els.birth.value, 10) : null,
-    death_year: deceased && els.death.value ? parseInt(els.death.value, 10) : null,
-    sequence: els.seq && els.seq.value ? parseInt(els.seq.value, 10) : null,
-    deceased: deceased,
-    spouse_en: married ? (els.spouseEn.value.trim() || null) : null,
-    spouse_hi: married ? (els.spouseHi.value.trim() || null) : null,
-    spouse_birth_year: married && els.spouseBirth.value ? parseInt(els.spouseBirth.value, 10) : null,
-    spouse_death_year: spouseDeceased && els.spouseDeath.value ? parseInt(els.spouseDeath.value, 10) : null,
-    spouse_deceased: spouseDeceased,
-    spouse_gender: married && spouseGenderEl ? spouseGenderEl.value : null,
     gender: genderEl ? genderEl.value : 'M',
-    notes: els.notes.value.trim() || null,
+    spouse_en: married && els.spouseEn ? (els.spouseEn.value.trim() || null) : null,
+    spouse_hi: married && els.spouseHi ? (els.spouseHi.value.trim() || null) : null,
+    spouse_gender: married && spouseGenderEl ? spouseGenderEl.value : null,
   };
+
+  // Admin tier: detail fields exist only when .admin-only wasn't removed.
+  // `els.living` is the sentinel for the tier being present.
+  if (els.living) {
+    const deceased = !els.living.checked;                          // unchecked Living = deceased
+    const spouseDeceased = married && !(els.spouseLiving && els.spouseLiving.checked);
+    data.birth_year = els.birth && els.birth.value ? parseInt(els.birth.value, 10) : null;
+    data.death_year = deceased && els.death && els.death.value ? parseInt(els.death.value, 10) : null;
+    data.sequence = els.seq && els.seq.value ? parseInt(els.seq.value, 10) : null;
+    data.deceased = deceased;
+    data.spouse_birth_year = married && els.spouseBirth && els.spouseBirth.value ? parseInt(els.spouseBirth.value, 10) : null;
+    data.spouse_death_year = spouseDeceased && els.spouseDeath && els.spouseDeath.value ? parseInt(els.spouseDeath.value, 10) : null;
+    data.spouse_deceased = spouseDeceased;
+    data.notes = els.notes ? (els.notes.value.trim() || null) : null;
+    data.death_year_hidden = !!(els.hideDeath && els.hideDeath.checked);
+    data.spouse_death_year_hidden = !!(els.spouseHideDeath && els.spouseHideDeath.checked);
+  }
+  return data;
 }
 
 function populateForm(els, person) {
   els.nameEn.value = person.name_en || '';
   els.nameHi.value = person.name_hi || '';
-  els.birth.value = person.birth_year != null ? person.birth_year : '';
-  els.death.value = person.death_year != null ? person.death_year : '';
+  if (els.birth) els.birth.value = person.birth_year != null ? person.birth_year : '';
+  if (els.death) els.death.value = person.death_year != null ? person.death_year : '';
   if (els.seq) els.seq.value = person.sequence != null ? person.sequence : '';
-  els.spouseEn.value = person.spouse_en || '';
-  els.spouseHi.value = person.spouse_hi || '';
-  els.spouseBirth.value = person.spouse_birth_year != null ? person.spouse_birth_year : '';
-  els.spouseDeath.value = person.spouse_death_year != null ? person.spouse_death_year : '';
-  els.notes.value = person.notes || '';
+  if (els.spouseEn) els.spouseEn.value = person.spouse_en || '';
+  if (els.spouseHi) els.spouseHi.value = person.spouse_hi || '';
+  if (els.spouseBirth) els.spouseBirth.value = person.spouse_birth_year != null ? person.spouse_birth_year : '';
+  if (els.spouseDeath) els.spouseDeath.value = person.spouse_death_year != null ? person.spouse_death_year : '';
+  if (els.notes) els.notes.value = person.notes || '';
+  if (els.hideDeath) els.hideDeath.checked = !!person.death_year_hidden;
+  if (els.spouseHideDeath) els.spouseHideDeath.checked = !!person.spouse_death_year_hidden;
   const genderRadio = els.form.querySelector(`[name="gender"][value="${person.gender || 'M'}"]`);
   if (genderRadio) genderRadio.checked = true;
   const spouseGenderRadio = person.spouse_gender
@@ -184,6 +212,7 @@ function populateParentOptions(els, selectedId, excludeIds) {
 
 function openNew(parentId) {
   if (window.__locked) return;
+  applyAdminTier();
   const els = getSidebarEls();
   if (!els.sidebar) return;
 
@@ -201,6 +230,7 @@ function openNew(parentId) {
 
 function openEdit(personId) {
   if (window.__locked) return;
+  applyAdminTier();
   const els = getSidebarEls();
   if (!els.sidebar) return;
 

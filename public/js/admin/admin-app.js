@@ -164,7 +164,7 @@ async function renderDashboard() {
       '<button class="btn btn-ghost" id="btn-logout">Log out</button></div>' +
     '</header>' +
     '<div class="admin-grid">' +
-      '<section class="admin-card"><h2>Moderation</h2><div id="moderation-box">Loading…</div></section>' +
+      '<section class="admin-card"><h2>Settings</h2><div id="moderation-box">Loading…</div></section>' +
       '<section class="admin-card"><h2>Add admin</h2><div id="add-admin-box"></div></section>' +
       '<section class="admin-card admin-wide"><h2>Pending edits <span id="queue-count" class="count"></span></h2><div id="queue-box">Loading…</div></section>' +
       '<section class="admin-card admin-wide"><h2>History</h2><div id="history-box">Loading…</div></section>' +
@@ -185,25 +185,16 @@ async function renderDashboard() {
   reloadHistory();
 }
 
-async function renderModeration() {
-  const box = document.getElementById('moderation-box');
-  let enabled = false;
-  try { enabled = (await adminApi.getSettings()).moderation_enabled === true; }
-  catch (err) { box.innerHTML = `<div class="form-error">${esc(err.message)}</div>`; return; }
-  box.innerHTML =
-    '<label class="switch"><input type="checkbox" id="mod-toggle"' + (enabled ? ' checked' : '') + ' /> ' +
-    'Require approval for public edits</label>' +
-    '<p class="muted" id="mod-state"></p>';
-  const stateEl = document.getElementById('mod-state');
-  const setStateText = (on) => { stateEl.textContent = on ? 'ON — edits are queued for review.' : 'OFF — edits apply immediately.'; };
-  setStateText(enabled);
-  const toggle = document.getElementById('mod-toggle');
+// Wire one settings checkbox: PATCH on change, reflect the server's returned
+// value, revert + show the error on failure, re-enable when done.
+function wireSettingToggle(toggleId, stateEl, setText, apiCall, respKey) {
+  const toggle = document.getElementById(toggleId);
   toggle.addEventListener('change', async () => {
     toggle.disabled = true;
     try {
-      const r = await adminApi.setModeration(toggle.checked);
-      toggle.checked = r.moderation_enabled === true;
-      setStateText(toggle.checked);
+      const r = await apiCall(toggle.checked);
+      toggle.checked = r[respKey] === true;
+      setText(toggle.checked);
     } catch (err) {
       toggle.checked = !toggle.checked; // revert optimistic flip
       stateEl.textContent = err.message;
@@ -211,6 +202,33 @@ async function renderModeration() {
       toggle.disabled = false;
     }
   });
+}
+
+async function renderModeration() {
+  const box = document.getElementById('moderation-box');
+  let settings;
+  try { settings = await adminApi.getSettings(); }
+  catch (err) { box.innerHTML = `<div class="form-error">${esc(err.message)}</div>`; return; }
+  const modOn = settings.moderation_enabled === true;
+  const sbyOn = settings.show_birth_year === true;
+
+  box.innerHTML =
+    '<label class="switch"><input type="checkbox" id="mod-toggle"' + (modOn ? ' checked' : '') + ' /> ' +
+    'Require approval for public edits</label>' +
+    '<p class="muted" id="mod-state"></p>' +
+    '<label class="switch"><input type="checkbox" id="sby-toggle"' + (sbyOn ? ' checked' : '') + ' /> ' +
+    'Show birth year on public view (global)</label>' +
+    '<p class="muted" id="sby-state"></p>';
+
+  const modStateEl = document.getElementById('mod-state');
+  const setModText = (on) => { modStateEl.textContent = on ? 'ON — edits are queued for review.' : 'OFF — edits apply immediately.'; };
+  setModText(modOn);
+  wireSettingToggle('mod-toggle', modStateEl, setModText, (v) => adminApi.setModeration(v), 'moderation_enabled');
+
+  const sbyStateEl = document.getElementById('sby-state');
+  const setSbyText = (on) => { sbyStateEl.textContent = on ? 'ON — birth years are visible to the public.' : 'OFF — birth years hidden from the public.'; };
+  setSbyText(sbyOn);
+  wireSettingToggle('sby-toggle', sbyStateEl, setSbyText, (v) => adminApi.setShowBirthYear(v), 'show_birth_year');
 }
 
 function renderAddAdmin() {

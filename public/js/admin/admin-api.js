@@ -38,6 +38,9 @@ const adminApi = {
   setModeration(enabled) {
     return adminFetch('/api/settings', { method: 'PATCH', body: JSON.stringify({ moderation_enabled: enabled }) });
   },
+  setShowBirthYear(enabled) {
+    return adminFetch('/api/settings', { method: 'PATCH', body: JSON.stringify({ show_birth_year: enabled }) });
+  },
 
   // --- Moderation queue / history ---
   // status: 'pending' | 'applied' | 'reverted' | 'rejected'

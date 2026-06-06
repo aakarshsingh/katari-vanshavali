@@ -2049,7 +2049,7 @@ from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocke
 | 2.15 | Serializer + pickPublicFields whitelist + requireBoolean (+ unit tests) | Completed |
 | 2.16 | Wire serializer/whitelist into tree GET + persons routes (+ tests) | Completed |
 | 2.17 | settings show_birth_year + changes whitelist + applyChange merge (+ test) | Completed |
-| 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Pending |
+| 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Completed |
 | 2.19 | Admin "Show birth year" dashboard toggle | Pending |
 | 2.20 | Local round-trip test on mock DB (manual E2E) | Pending |
 
@@ -3215,7 +3215,7 @@ loss on approve.
 
 ### Phase 2.18: Two-tier edit form (#admin-fields + hide-death checkboxes)
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/index.html` — modify
@@ -3237,26 +3237,57 @@ loss on approve.
     new checkboxes.
 
 **Verification:**
-- [ ] `node --check public/js/sidebar.js`.
-- [ ] Manual (non-admin): open edit → only Name (EN/HI) + Gender + Married/Spouse
-      name/gender present; no birth/death/notes inputs in the DOM; save works.
-- [ ] Manual (admin): full form incl. the two hide-death checkboxes; toggling one
-      hides that card's death year on the public view.
-- [ ] Tree renders identically (no layout shift).
+- [x] `node --check public/js/sidebar.js` → `CHECK_OK`; `npm test` → 107/107 (no regression).
+- [x] dev:mock serve: index.html ships 8 `.admin-only` groups + `#f-hide-death` +
+      `#f-spouse-hide-death`; `/js/sidebar.js` 200.
+- [~] Manual (browser) non-admin DOM-removal + admin hide-death toggle — deferred to
+      2.20, consistent with prior frontend phases (removal is client-side JS).
+- [x] Tree render path untouched (no `tree-render.js`/`tree-layout.js` change).
 
 **Definition of Done:**
-- [ ] Public form trimmed (DOM-level); admin form full with per-card death-hide.
+- [x] Public form trimmed (DOM-level); admin form full with per-card death-hide.
 
 **Self-Audit:** standard + no detail inputs in public DOM; null-guards prevent
 errors when `#admin-fields` is absent; no render/layout change.
+- [x] Only target files touched (index.html, sidebar.js)
+- [x] No detail inputs in public DOM — `.admin-only` groups `.remove()`d for non-admins
+- [x] Null-guards added in `collectForm`/`populateForm` (+ existing guards in setLiving/setSpouseLiving) so a missing tier never throws
+- [x] No tree render/layout change (form-only)
+- [x] node --check + 107/107 green
+- [x] Changes minimum necessary
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: `index.html` — tagged the eight detail groups with an
+  `.admin-only` class in place (person Living, person birth/death row, person
+  hide-death, sequence, spouse Living, spouse-meta row, spouse hide-death, notes) and
+  added two admin-only checkboxes `#f-hide-death` + `#f-spouse-hide-death`. `sidebar.js`
+  — new `applyAdminTier()` removes `#person-form .admin-only` from the DOM for
+  non-admins; called at the top of `openNew`/`openEdit` (idempotent). `getSidebarEls`
+  exposes `hideDeath`/`spouseHideDeath`. `collectForm` split into a public tier
+  (name + gender + spouse name/gender, always sent) and an admin tier (gated on the
+  `els.living` sentinel: birth/death/sequence/notes/spouse years + the two hide flags).
+  `populateForm` null-guards every detail input and sets the two hide-death checkboxes.
+- Deviations from plan: (1) Used an **`.admin-only` class** on the in-place detail
+  groups instead of a single **`#admin-fields`** id. The detail fields are
+  non-contiguous (person detail sits before Gender; spouse detail lives inside the
+  `married`-gated `#spouse-fields`; notes is last), so one contiguous container would
+  force a form reorder + rewiring spouse-year visibility off the `married` toggle. The
+  class removes them in place — identical "absent from public DOM" guarantee (per
+  architecture threat-model), no reorder, no toggle-rewiring. (2) Removal is applied
+  **lazily on sidebar open**, not in `initSidebar` as written: `window.__moderation.admin`
+  is set asynchronously by `main.loadModerationState()` *after* DOMContentLoaded, so an
+  init-time check would always see `admin:false` and wrongly strip fields for real
+  admins. `main.js` is not a 2.18 target, so a lazy open-time apply (admin status
+  resolved by then) is the correct in-scope fix.
+- Field notes: `els.living` is the admin-tier sentinel in `collectForm` — if it's
+  null, the whole detail block is skipped. Server-side `pickPublicFields` (2.16) is the
+  authoritative guard; this phase makes the public DOM match (defence in depth).
 
 ---
 
 ### Phase 2.19: Admin "Show birth year" dashboard toggle
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/admin/admin-app.js` — modify
@@ -3270,17 +3301,39 @@ errors when `#admin-fields` is absent; no render/layout change.
   `PATCH /api/settings { show_birth_year }`; reflects success/failure.
 
 **Verification:**
-- [ ] `node --check` on both files.
-- [ ] Manual: toggle ON → birth years appear across the public tree on reload;
-      toggle OFF → they disappear; value persists (re-fetch reflects it).
+- [x] `node --check` on both files → `CHECK_OK`; `npm test` → 107/107.
+- [x] dev:mock: both admin scripts serve 200; admin `PATCH /api/settings
+      {show_birth_year:true}` → `{moderation_enabled:false, show_birth_year:true}`;
+      public `GET /api/settings` reflects it.
+- [~] Manual (browser) toggle-flips-public-tree — deferred to 2.20, consistent with
+      prior frontend phases.
 
 **Definition of Done:**
-- [ ] Admin can flip global birth-year visibility from the dashboard; no redeploy.
+- [x] Admin can flip global birth-year visibility from the dashboard; no redeploy.
 
 **Self-Audit:** standard + admin-only (route already `requireAdmin`); UI consistent
 with the moderation toggle.
+- [x] Only target files touched (admin-app.js, admin-api.js)
+- [x] Admin-only — `PATCH /api/settings` is `requireAdmin` (server-enforced; verified 401 without auth in 2.17)
+- [x] UI consistent with the moderation toggle (shared `wireSettingToggle` helper)
+- [x] node --check + 107/107 green
+- [x] Changes minimum necessary
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: `admin-api.js` — added `setShowBirthYear(enabled)` mirroring
+  `setModeration`. `admin-app.js` — renamed the dashboard card "Moderation" → "Settings";
+  `renderModeration` now reads both flags from one `GET /api/settings` and renders two
+  switches (moderation + "Show birth year on public view (global)"). Extracted the
+  optimistic toggle wiring (PATCH on change → reflect server value → revert + show error
+  on failure → re-enable) into a reusable `wireSettingToggle(toggleId, stateEl, setText,
+  apiCall, respKey)` used by both switches.
+- Deviations from plan: None (the "beside the moderation toggle" placement is realized
+  as a second switch in the same card, which I relabelled "Settings").
+- Field notes: None.
+
+> **Field-visibility feature (2.14–2.19) complete.** Admins can globally reveal birth
+> years and per-card force-hide death years; the public form + API are locked down.
+> Only **2.20** (manual local round-trip on dev:mock) remains in the cycle.
 
 ---
 

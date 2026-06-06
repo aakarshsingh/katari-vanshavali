@@ -95,13 +95,13 @@
           <input type="text" id="f-name-hi" name="name_hi" autocomplete="off" class="devanagari" />
         </div>
 
-        <div class="form-group">
+        <div class="form-group admin-only">
           <label class="check-label">
             <input type="checkbox" id="f-living" checked /> Living
           </label>
         </div>
 
-        <div class="form-group form-group--row">
+        <div class="form-group form-group--row admin-only">
           <div class="form-group">
             <label for="f-birth">Birth year</label>
             <input type="number" id="f-birth" name="birth_year" min="1000" max="2100" />
@@ -112,7 +112,13 @@
           </div>
         </div>
 
-        <div class="form-group">
+        <div class="form-group admin-only">
+          <label class="check-label">
+            <input type="checkbox" id="f-hide-death" /> Hide death year on public view
+          </label>
+        </div>
+
+        <div class="form-group admin-only">
           <label for="f-seq">Sequence <span class="field-hint">order among siblings (1, 2, 3…)</span></label>
           <input type="number" id="f-seq" name="sequence" min="1" />
         </div>
@@ -151,13 +157,13 @@
           <input type="text" id="f-spouse-hi" name="spouse_hi" autocomplete="off" class="devanagari" />
         </div>
 
-        <div class="form-group">
+        <div class="form-group admin-only">
           <label class="check-label">
             <input type="checkbox" id="f-spouse-living" checked /> Living
           </label>
         </div>
 
-        <div class="form-group form-group--row" id="spouse-meta">
+        <div class="form-group form-group--row admin-only" id="spouse-meta">
           <div class="form-group">
             <label for="f-spouse-birth">Birth year</label>
             <input type="number" id="f-spouse-birth" name="spouse_birth_year" min="1000" max="2100" />
@@ -166,6 +172,12 @@
             <label for="f-spouse-death">Death year</label>
             <input type="number" id="f-spouse-death" name="spouse_death_year" min="1000" max="2100" />
           </div>
+        </div>
+
+        <div class="form-group admin-only">
+          <label class="check-label">
+            <input type="checkbox" id="f-spouse-hide-death" /> Hide spouse death year on public view
+          </label>
         </div>
 
         <div class="form-group">
@@ -184,7 +196,7 @@
         </div>
         </div><!-- /#spouse-fields -->
 
-        <div class="form-group">
+        <div class="form-group admin-only">
           <label for="f-notes">Notes</label>
           <textarea id="f-notes" name="notes" rows="2"></textarea>
         </div>
