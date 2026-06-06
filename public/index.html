@@ -19,6 +19,9 @@
       <button id="btn-help" class="toolbar-btn" title="Controls &amp; help">
         <i data-lucide="help-circle"></i>
       </button>
+      <button id="btn-history" class="toolbar-btn" title="Version history">
+        <i data-lucide="history"></i>
+      </button>
       <button id="btn-lock" class="toolbar-btn" title="Locked — click to enable editing" aria-pressed="true">
         <i data-lucide="lock"></i>
         <span id="lock-label">Locked</span>
@@ -208,6 +211,8 @@
     <div id="minimap-rect"></div>
   </div>
 
+  <div id="history-panel" hidden></div>
+
   <div id="help-popover" hidden>
     <h3>Controls</h3>
     <ul>
@@ -275,6 +280,7 @@
   <script src="/js/transliterate.js"></script>
   <script src="/js/overlay.js"></script>
   <script src="/js/mutate.js"></script>
+  <script src="/js/history.js"></script>
   <script src="/js/sidebar.js"></script>
   <script src="/js/context-menu.js"></script>
   <script src="/vendor/jspdf.umd.min.js"></script>

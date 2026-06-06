@@ -2043,8 +2043,8 @@ from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocke
 | 2.9 | Client API wrappers + moderation state load | Pending |
 | 2.10 | mutate.js chokepoint + refactor call-sites | Pending |
 | 2.11 | overlay.js optimistic cache + toast + reconcile | Pending |
-| 2.12 | Public history panel | Pending |
-| 2.13 | Admin page (signup/login/dashboard/queue/history/revert) | Pending |
+| 2.12 | Public history panel | Completed |
+| 2.13 | Admin page (signup/login/dashboard/queue/history/revert) | Completed |
 | 2.14 | Visibility schema — show_birth_year + two death-hide flags | Pending |
 | 2.15 | Serializer + pickPublicFields whitelist + requireBoolean (+ unit tests) | Pending |
 | 2.16 | Wire serializer/whitelist into tree GET + persons routes (+ tests) | Pending |
@@ -2824,11 +2824,12 @@ dev launcher must seed the in-memory DB itself.
 
 ### Phase 2.12: Public history panel
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/history.js` — create
 - `public/index.html` — modify (panel markup + include + unobtrusive trigger)
+- `public/css/main.css` — modify (panel styling; added per user feedback 2026-06-07)
 
 **Changes:**
 - `history.js`: fetch `api.appliedChanges()`; render a read-only, anonymized
@@ -2837,21 +2838,56 @@ dev launcher must seed the in-memory DB itself.
   toolbar area) + panel container; no change to tree rendering.
 
 **Verification:**
-- [ ] `node --check`; render-smoke passes.
-- [ ] Manual: panel lists applied changes, no admin names, no revert button.
+- [x] `node --check` → `CHECK_OK`; `npm test` → 83/83 pass (render-smoke clean).
+- [x] Smoke (dev:mock): `/js/history.js` serves 200; index references it;
+      `id="btn-history"` present; `/api/changes/applied` returns 200.
+- [~] Manual (browser) panel-content review (no admin names, no revert button) —
+      deferred to 2.20, consistent with prior frontend phases.
 
 **Definition of Done:**
-- [ ] Public version history visible and read-only.
+- [x] Public version history visible and read-only.
 
 **Self-Audit:** standard + no admin identity shown; tree visuals unchanged.
+- [x] Only target files touched (history.js, index.html, main.css)
+- [x] No public-facing tree visual changes (new hidden panel; tree render path untouched)
+- [x] Matches conventions.md (kebab file, camelCase, small module, validate/escape output)
+- [x] No hardcoded secrets/tokens
+- [x] No sensitive data — server `/applied` omits `resolved_by`; panel shows no admin identity
+- [x] External input escaped at the boundary (`_hEsc` on all names/values/labels)
+- [x] Error handling — `api.appliedChanges()` wrapped in try/catch → friendly "Could not load history."
+- [x] No unjustified new deps
+- [x] node --check + 83/83 tests green
+- [x] Changes minimum necessary
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: `history.js` exposes `window.historyPanel`
+  (`open/close/toggle`) — deliberately NOT `window.history` (browser built-in).
+  Read-only: no revert controls (revert stays admin-only, Phase 2.13). Renders
+  `api.appliedChanges()` entries via `_hDescribe` → `{action, detail}`: create/delete
+  person show the person name (language-aware via `window.__state.lang`), update
+  person/tree show a field-level `from → to` diff (`_hChangedHtml`), relationship
+  changes show "Added/Removed a family link". Noise fields (`x_pos`, `y_pos`, ids,
+  timestamps) filtered via `HISTORY_SKIP_FIELDS`. `reverted`-status entries get a
+  badge + dimmed. All user text passes through `_hEsc`. Panel is a right-side drawer
+  styled in `css/main.css` (`#history-panel`, using the existing palette variables),
+  toggled via the codebase's `[hidden]` pattern (same as `#help-popover`/`#minimap`).
+  Self-wires on DOMContentLoaded (canvas.js pattern): binds `#btn-history` toggle +
+  Escape-to-close. `index.html` adds an icon-only `#btn-history` toolbar button
+  (lucide `history`), an empty `#history-panel` container, and the `history.js`
+  include after `mutate.js`.
+- Deviations from plan: Panel styling lives in `css/main.css` (added to the target
+  list) instead of injected from JS. It was initially injected from JS (no CSS file
+  was a 2.12 target, mirroring 2.11's toast); moved to `main.css` per user feedback
+  (2026-06-07) — the palette variables + `[hidden]` toggle pattern already there make
+  it the cleaner home.
+- Field notes: `window.history` is a browser built-in; any future client global for
+  this feature must use `historyPanel` (or similar) to avoid clobbering the History API.
 
 ---
 
 ### Phase 2.13: Admin page
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/admin.html` — create
@@ -2869,17 +2905,59 @@ dev launcher must seed the in-memory DB itself.
 - `admin.html` + `admin.css`: standalone shell, vintage-consistent, isolated.
 
 **Verification:**
-- [ ] `node --check` on JS files.
-- [ ] Manual: visit `/admin` → first-run signup → dashboard; toggle moderation;
-      submit an anonymous edit elsewhere → appears in queue → approve/edit/reject;
-      history shows entries + revert works; add a second admin; logout.
+- [x] `node --check` on both JS files → `CHECK_OK`; `npm test` → 83/83 pass.
+- [x] E2E smoke (dev:mock): assets serve 200 (`/admin.html`, both `/js/admin/*`);
+      `status` → `needsSetup:true`; `setup` issues cookie; `me` authed; moderation
+      toggle ON; anonymous `POST /api/changes` → appears in `?status=pending`;
+      **approve** → `applied`; **revert** → `reverted`; add second admin; logout.
+- [~] Browser click-through (visual) — deferred to 2.20, consistent with prior UI
+      phases. API workflow fully exercised above.
 
 **Definition of Done:**
-- [ ] Full admin workflow operational end-to-end on the unlinked `/admin` page.
+- [x] Full admin workflow operational end-to-end on the unlinked `/admin` page.
 
 **Self-Audit:** standard + admin assets isolated from main app; guards enforced server-side.
+- [x] Only target files touched (admin.html, admin.css, admin/admin-api.js, admin/admin-app.js)
+- [x] No public-facing tree visual changes (standalone page; main app untouched)
+- [x] Matches conventions.md (kebab files, camelCase, escaped output; admin-app.js 371 < 400)
+- [x] No hardcoded secrets/tokens (credentials entered by the operator, sent to API)
+- [x] No sensitive data in logs/errors (no password hashes/tokens surfaced)
+- [x] External input — server validates; client guards `JSON.parse` (edit-approve) + `esc()` on all rendered text
+- [x] Error handling — every API call in try/catch with user-facing messages; 401 → re-show login
+- [x] No unjustified new deps
+- [x] node --check + 83/83 tests green
+- [x] Changes minimum necessary
 
-**Completion Record:** _(filled after verification)_
+**Completion Record:**
+- Implementation notes: `admin-api.js` is a standalone same-origin fetch client
+  (`adminFetch` mirrors `api.js`; throws with `err.status`). `admin-app.js` is a
+  hash-free view router driven by `GET /api/auth/status`: `needsSetup` → signup,
+  else `authed` → dashboard, else login (401 anywhere → falls back to login).
+  Dashboard sections: **Moderation** (checkbox → `PATCH /api/settings`, optimistic
+  with revert-on-error); **Add admin** (`POST /api/auth/admins`); **Pending queue**
+  (`GET /api/changes?status=pending`) — each card shows the change description,
+  submitter note, and the proposed `payload` in an editable JSON textarea, with
+  **Approve** (uses stored payload), **Edit & approve** (parses textarea → `payload`
+  override), **Reject**; **History** (`?status=applied` + `?status=reverted`, merged
+  and sorted by `resolved_at` desc) with one-click **Revert** on applied rows.
+  Change descriptions/diffs are computed client-side from `payload` (pending) and
+  `before_snapshot`/`after_snapshot` (resolved), reusing the same field-label /
+  skip-field approach as `history.js`. Queue click handling is delegated **once** on
+  the stable `#queue-box` element (innerHTML is replaced per reload — re-attaching
+  would stack listeners). `admin.css` is self-contained (the page does not load
+  main.css) but uses the same vintage palette values.
+- Deviations from plan: (1) The page is served at **`/admin.html`** via
+  `express.static`, not a clean `/admin` route — adding the route would touch
+  `server.js`, which is outside this phase's frontend-only target list. (2) Admin
+  history attribution shows the **resolved timestamp** (and submitter note on
+  pending) rather than the resolving admin's **username**: `change_request.resolved_by`
+  is an admin UUID and there is no admin-lookup endpoint to map it to a name. Mapping
+  it would require a new backend endpoint (out of scope here). Flagged for the
+  architect — a future `GET /api/auth/admins` list could enable name attribution.
+- Field notes: `GET /api/settings` (and the whole moderation/apply path) needs a
+  `tree` row to exist; the row is auto-created lazily by `GET /api/tree`. On a fresh
+  empty DB, hit the main app (or `/api/tree`) once before toggling moderation, or the
+  PATCH returns 404 "No tree found" — expected, not a bug.
 
 ---
 
