@@ -1,3 +1,6 @@
 node_modules/
 .env
 coverage/
+
+# Real family data — seeds the local dev DB only, never committed
+docs/seed.json
