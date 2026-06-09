@@ -30,7 +30,8 @@ router.get('/', async (req, res) => {
     );
     const persons = serializePersons(personsResult.rows, {
       isAdmin: !!req.admin,
-      showBirthYear: tree.show_birth_year === true,
+      showYearsDeceased: tree.show_years_deceased === true,
+      showBirthYearLiving: tree.show_birth_year_living === true,
     });
     res.json({ tree, persons, relationships: relResult.rows });
   } catch (err) {

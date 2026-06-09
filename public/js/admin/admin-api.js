@@ -33,13 +33,20 @@ const adminApi = {
     return adminFetch('/api/auth/admins', { method: 'POST', body: JSON.stringify({ username, password }) });
   },
 
+  // --- Tree (admin → full rows; used to source `before` for pending-edit diffs) ---
+  getTree() { return adminFetch('/api/tree'); },
+
   // --- Settings ---
   getSettings() { return adminFetch('/api/settings'); },
   setModeration(enabled) {
     return adminFetch('/api/settings', { method: 'PATCH', body: JSON.stringify({ moderation_enabled: enabled }) });
   },
-  setShowBirthYear(enabled) {
-    return adminFetch('/api/settings', { method: 'PATCH', body: JSON.stringify({ show_birth_year: enabled }) });
+  // Pivot R5: two life-status year toggles (replaced the single setShowBirthYear).
+  setShowYearsDeceased(enabled) {
+    return adminFetch('/api/settings', { method: 'PATCH', body: JSON.stringify({ show_years_deceased: enabled }) });
+  },
+  setShowBirthYearLiving(enabled) {
+    return adminFetch('/api/settings', { method: 'PATCH', body: JSON.stringify({ show_birth_year_living: enabled }) });
   },
 
   // --- Moderation queue / history ---

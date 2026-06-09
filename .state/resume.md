@@ -155,12 +155,14 @@ _Pending feedback — Pivot R5 (2026-06-09), awaiting plan/approval:_
 5. **Admin-editable lineage line:** the 5-name ancestor line is fully editable from
    the admin panel (add/remove/reorder/edit) + seeded + 1840–1940 caption (Phase 2.26).
 
-**R5 planned & appended (2026-06-09), awaiting `/as-p5-execute`:** phases **2.21A,
-2.22A, 2.23, 2.24, 2.25, 2.26** in `execution_plan.md`; requirements/architecture carry
-`[AMENDED 2026-06-09 — Pivot R5]` sections. Visibility model amended to TWO global
-life-status toggles (`tree.show_years_deceased`, `tree.show_birth_year_living`),
-retiring the single `show_birth_year` + per-card hide flags. 107/107 tests green at
-baseline `6d0976f`. **Not yet executed.**
+**R5 progress (2026-06-09):** plan committed `b88f4ac`. **2.21A + 2.22A + 2.23 DONE**
+(life-status year toggles `tree.show_years_deceased` / `tree.show_birth_year_living`
+replacing the single `show_birth_year` + per-card hide flags; serializer keyed off
+`deceased`/`spouse_deceased`; settings + two admin toggles + route wiring; pending-edit
+diff view in the admin queue). **114/114 tests green**; verified on dev:mock. Staged,
+**not yet committed** (awaiting architect). **Remaining R5: 2.24** (no-op guard),
+**2.25** (admin edit-any-card), **2.26** (admin-editable lineage). 2.20 deferred.
+Next: `/as-p5-execute` 2.24 in a fresh session.
 
 ## How this app is built (orientation)
 

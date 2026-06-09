@@ -122,6 +122,9 @@ textarea { font-family: ui-monospace, 'Courier New', monospace; font-size: 0.8re
   background: var(--cream);
 }
 .q-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 3px; }
+.q-diff { margin: 6px 0; }
+.q-raw { margin: 6px 0; }
+.q-raw > summary { cursor: pointer; font-size: 0.78rem; color: var(--ink-faint); }
 .q-payload { width: 100%; margin: 8px 0; }
 .q-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 

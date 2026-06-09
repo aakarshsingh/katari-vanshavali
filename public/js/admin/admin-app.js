@@ -72,6 +72,45 @@ function diffHtml(before, after) {
   return rows.join('');
 }
 
+// Render a plain field list (label: value) for a payload — used when there is no
+// `before` to diff against (e.g. a create, or an edit whose target isn't loaded).
+function fieldListHtml(obj) {
+  if (!obj) return '';
+  return Object.keys(obj)
+    .filter((k) => !SKIP_FIELDS.has(k))
+    .map((k) => {
+      const label = FIELD_LABELS[k] || k;
+      return `<div class="diff"><span class="diff-field">${esc(label)}</span> ` +
+        `<span class="diff-to">${esc(fmtVal(obj[k]))}</span></div>`;
+    })
+    .join('');
+}
+
+// Human-readable detail for a PENDING change. For a person edit we diff the
+// proposed payload against the current record (`personMap[target_id]`) so the
+// reviewer sees exactly what changed — not raw JSON. Falls back to a field list
+// when there's no record to compare (create, or unknown target).
+function pendingDetailHtml(row, personMap) {
+  const payload = row.payload || {};
+  if (row.entity === 'person') {
+    if (row.op_type === 'update') {
+      const before = personMap[row.target_id];
+      if (before) {
+        const diff = diffHtml(before, payload);
+        return diff || '<p class="muted">No field changes.</p>';
+      }
+      return fieldListHtml(payload);
+    }
+    if (row.op_type === 'create') return fieldListHtml(payload);
+    if (row.op_type === 'delete') {
+      const p = personMap[row.target_id];
+      return p ? `<p class="muted">${esc(personName(p))}</p>` : '';
+    }
+  }
+  if (row.entity === 'tree') return fieldListHtml(payload);
+  return ''; // relationship: the title line already says it all
+}
+
 // Describe a resolved (applied/reverted) row from its before/after snapshots.
 function describeResolved(row) {
   const { op_type, entity } = row;
@@ -210,25 +249,34 @@ async function renderModeration() {
   try { settings = await adminApi.getSettings(); }
   catch (err) { box.innerHTML = `<div class="form-error">${esc(err.message)}</div>`; return; }
   const modOn = settings.moderation_enabled === true;
-  const sbyOn = settings.show_birth_year === true;
+  const deceasedOn = settings.show_years_deceased === true;
+  const livingOn = settings.show_birth_year_living === true;
 
   box.innerHTML =
     '<label class="switch"><input type="checkbox" id="mod-toggle"' + (modOn ? ' checked' : '') + ' /> ' +
     'Require approval for public edits</label>' +
     '<p class="muted" id="mod-state"></p>' +
-    '<label class="switch"><input type="checkbox" id="sby-toggle"' + (sbyOn ? ' checked' : '') + ' /> ' +
-    'Show birth year on public view (global)</label>' +
-    '<p class="muted" id="sby-state"></p>';
+    '<label class="switch"><input type="checkbox" id="dec-toggle"' + (deceasedOn ? ' checked' : '') + ' /> ' +
+    'Show years for deceased people (birth + death)</label>' +
+    '<p class="muted" id="dec-state"></p>' +
+    '<label class="switch"><input type="checkbox" id="liv-toggle"' + (livingOn ? ' checked' : '') + ' /> ' +
+    'Show birth year for living people</label>' +
+    '<p class="muted" id="liv-state"></p>';
 
   const modStateEl = document.getElementById('mod-state');
   const setModText = (on) => { modStateEl.textContent = on ? 'ON — edits are queued for review.' : 'OFF — edits apply immediately.'; };
   setModText(modOn);
   wireSettingToggle('mod-toggle', modStateEl, setModText, (v) => adminApi.setModeration(v), 'moderation_enabled');
 
-  const sbyStateEl = document.getElementById('sby-state');
-  const setSbyText = (on) => { sbyStateEl.textContent = on ? 'ON — birth years are visible to the public.' : 'OFF — birth years hidden from the public.'; };
-  setSbyText(sbyOn);
-  wireSettingToggle('sby-toggle', sbyStateEl, setSbyText, (v) => adminApi.setShowBirthYear(v), 'show_birth_year');
+  const decStateEl = document.getElementById('dec-state');
+  const setDecText = (on) => { decStateEl.textContent = on ? 'ON — deceased people show birth + death years.' : 'OFF — deceased people show no years publicly.'; };
+  setDecText(deceasedOn);
+  wireSettingToggle('dec-toggle', decStateEl, setDecText, (v) => adminApi.setShowYearsDeceased(v), 'show_years_deceased');
+
+  const livStateEl = document.getElementById('liv-state');
+  const setLivText = (on) => { livStateEl.textContent = on ? 'ON — living people show their birth year.' : 'OFF — living people show no years publicly.'; };
+  setLivText(livingOn);
+  wireSettingToggle('liv-toggle', livStateEl, setLivText, (v) => adminApi.setShowBirthYearLiving(v), 'show_birth_year_living');
 }
 
 function renderAddAdmin() {
@@ -269,13 +317,26 @@ async function reloadQueue() {
   catch (err) { box.innerHTML = `<div class="form-error">${esc(err.message)}</div>`; return; }
   if (countEl) countEl.textContent = rows.length ? `(${rows.length})` : '';
   if (!rows.length) { box.innerHTML = '<p class="muted">No pending edits.</p>'; return; }
+
+  // Source the current records so a pending edit can be shown as a before→after
+  // diff. Best-effort: if the tree fetch fails we still render (field-list fallback).
+  let personMap = {};
+  try {
+    const tree = await adminApi.getTree();
+    for (const p of (tree.persons || [])) personMap[p.id] = p;
+  } catch (_) { personMap = {}; }
+
   box.innerHTML = rows.map((r) => {
     const note = r.submitter_note ? `<div class="muted">Note: ${esc(r.submitter_note)}</div>` : '';
+    const detail = pendingDetailHtml(r, personMap);
     const payloadJson = esc(JSON.stringify(r.payload || {}, null, 2));
     return '<div class="q-card" data-id="' + esc(r.id) + '">' +
       '<div class="q-title">' + esc(describePending(r)) + '</div>' +
       '<div class="muted">submitted ' + esc(fmtDate(r.submitted_at)) + '</div>' + note +
-      '<textarea class="q-payload" rows="6" spellcheck="false">' + payloadJson + '</textarea>' +
+      (detail ? '<div class="q-diff">' + detail + '</div>' : '') +
+      '<details class="q-raw"><summary>Edit raw payload</summary>' +
+        '<textarea class="q-payload" rows="6" spellcheck="false">' + payloadJson + '</textarea>' +
+      '</details>' +
       '<div class="q-actions">' +
         '<button class="btn" data-act="approve">Approve</button>' +
         '<button class="btn btn-ghost" data-act="approve-edit">Edit &amp; approve</button>' +

@@ -25,24 +25,26 @@ beforeEach(() => {
 });
 
 describe('settings route', () => {
-  test('GET /api/settings → returns both flags (public)', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: false, show_birth_year: false }] });
+  const ALL_OFF = { moderation_enabled: false, show_years_deceased: false, show_birth_year_living: false };
+
+  test('GET /api/settings → returns all three flags (public)', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ ...ALL_OFF }] });
     const res = await request(app).get('/api/settings');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ moderation_enabled: false, show_birth_year: false });
+    expect(res.body).toEqual(ALL_OFF);
   });
 
-  test('GET /api/settings → both default to false when no tree row', async () => {
+  test('GET /api/settings → all default to false when no tree row', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).get('/api/settings');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ moderation_enabled: false, show_birth_year: false });
+    expect(res.body).toEqual(ALL_OFF);
   });
 
-  test('GET /api/settings → reflects show_birth_year=true', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: false, show_birth_year: true }] });
+  test('GET /api/settings → reflects show_years_deceased=true', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ ...ALL_OFF, show_years_deceased: true }] });
     const res = await request(app).get('/api/settings');
-    expect(res.body.show_birth_year).toBe(true);
+    expect(res.body.show_years_deceased).toBe(true);
   });
 
   test('PATCH /api/settings → 401 without auth', async () => {
@@ -53,37 +55,47 @@ describe('settings route', () => {
   });
 
   test('PATCH /api/settings → toggles moderation with admin', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: true, show_birth_year: false }] });
+    pool.query.mockResolvedValueOnce({ rows: [{ ...ALL_OFF, moderation_enabled: true }] });
     const res = await request(app)
       .patch('/api/settings')
       .set('Cookie', adminCookie)
       .send({ moderation_enabled: true });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ moderation_enabled: true, show_birth_year: false });
+    expect(res.body).toEqual({ ...ALL_OFF, moderation_enabled: true });
   });
 
-  test('PATCH /api/settings → toggles show_birth_year with admin', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ moderation_enabled: false, show_birth_year: true }] });
+  test('PATCH /api/settings → toggles show_years_deceased with admin', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ ...ALL_OFF, show_years_deceased: true }] });
     const res = await request(app)
       .patch('/api/settings')
       .set('Cookie', adminCookie)
-      .send({ show_birth_year: true });
+      .send({ show_years_deceased: true });
     expect(res.status).toBe(200);
-    expect(res.body.show_birth_year).toBe(true);
+    expect(res.body.show_years_deceased).toBe(true);
   });
 
-  test('PATCH /api/settings → 401 toggling show_birth_year without auth', async () => {
+  test('PATCH /api/settings → toggles show_birth_year_living with admin', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ ...ALL_OFF, show_birth_year_living: true }] });
     const res = await request(app)
       .patch('/api/settings')
-      .send({ show_birth_year: true });
+      .set('Cookie', adminCookie)
+      .send({ show_birth_year_living: true });
+    expect(res.status).toBe(200);
+    expect(res.body.show_birth_year_living).toBe(true);
+  });
+
+  test('PATCH /api/settings → 401 toggling a year flag without auth', async () => {
+    const res = await request(app)
+      .patch('/api/settings')
+      .send({ show_years_deceased: true });
     expect(res.status).toBe(401);
   });
 
-  test('PATCH /api/settings → 400 on non-boolean show_birth_year', async () => {
+  test('PATCH /api/settings → 400 on non-boolean year flag', async () => {
     const res = await request(app)
       .patch('/api/settings')
       .set('Cookie', adminCookie)
-      .send({ show_birth_year: 'yes' });
+      .send({ show_years_deceased: 'yes' });
     expect(res.status).toBe(400);
   });
 

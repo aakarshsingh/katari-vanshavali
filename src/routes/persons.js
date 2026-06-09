@@ -7,12 +7,21 @@ const { recordPending, recordApplied } = require('../services/changelog');
 const { serializePerson } = require('../serializers/person');
 const { pickPublicFields } = require('../lib/public-fields');
 
-// Single read of the (single) tree's gate flags: moderation + birth-year reveal.
-// One query keeps the moderation check and the response serializer in sync.
+// Single read of the (single) tree's gate flags: moderation + the two life-status
+// year-visibility toggles. One query keeps the moderation check and the response
+// serializer in sync. `yearOpts` is spread straight into serializePerson.
 async function treeFlags() {
-  const { rows } = await pool.query('SELECT moderation_enabled, show_birth_year FROM tree LIMIT 1');
+  const { rows } = await pool.query(
+    'SELECT moderation_enabled, show_years_deceased, show_birth_year_living FROM tree LIMIT 1'
+  );
   const row = rows[0] || {};
-  return { moderation: row.moderation_enabled === true, showBirthYear: row.show_birth_year === true };
+  return {
+    moderation: row.moderation_enabled === true,
+    yearOpts: {
+      showYearsDeceased: row.show_years_deceased === true,
+      showBirthYearLiving: row.show_birth_year_living === true,
+    },
+  };
 }
 
 // Build the writable payload for a person request. Non-admins are reduced to the
@@ -45,7 +54,7 @@ router.post(
   async (req, res) => {
     const payload = personPayload(req, { withParent: true });
     try {
-      const { moderation, showBirthYear } = await treeFlags();
+      const { moderation, yearOpts } = await treeFlags();
       if (moderation && !req.admin) {
         const tree = await pool.query('SELECT id FROM tree LIMIT 1');
         const cr = await recordPending(null, {
@@ -64,7 +73,7 @@ router.post(
         });
         return r;
       });
-      res.status(201).json(serializePerson(result.after.person, { isAdmin: !!req.admin, showBirthYear }));
+      res.status(201).json(serializePerson(result.after.person, { isAdmin: !!req.admin, ...yearOpts }));
     } catch (err) {
       if (err.message === 'No tree exists') return res.status(400).json({ error: 'No tree exists yet' });
       console.error('POST /api/persons error:', err.message);
@@ -89,7 +98,7 @@ router.patch(
     const payload = personPayload(req, { withParent: false });
     if (Object.keys(payload).length === 0) return res.status(400).json({ error: 'No fields to update' });
     try {
-      const { moderation, showBirthYear } = await treeFlags();
+      const { moderation, yearOpts } = await treeFlags();
       if (moderation && !req.admin) {
         const cr = await recordPending(null, {
           op_type: 'update', entity: 'person', target_id: id, payload,
@@ -106,7 +115,7 @@ router.patch(
         });
         return r;
       });
-      res.json(serializePerson(result.after, { isAdmin: !!req.admin, showBirthYear }));
+      res.json(serializePerson(result.after, { isAdmin: !!req.admin, ...yearOpts }));
     } catch (err) {
       if (err.code === 'NOT_FOUND') return res.status(404).json({ error: 'Person not found' });
       console.error('PATCH /api/persons/:id error:', err.message);

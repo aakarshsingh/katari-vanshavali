@@ -13,15 +13,19 @@ const TREE_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const PERSON_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const ADMIN_COOKIE = `token=${signToken({ id: 'u1', username: 'admin' })}`;
 
-// A fully-populated DB row.
+// A fully-populated DB row. Both person and spouse are deceased so the public
+// year-stripping matrix is exercised (years exist to strip/keep).
 const FULL_PERSON = {
   id: PERSON_ID, tree_id: TREE_ID, name_en: 'Ram', name_hi: 'राम',
-  birth_year: 1950, death_year: 2010, spouse_en: 'Sita', spouse_birth_year: 1952,
-  spouse_death_year: 2012, gender: 'M', notes: 'secret', death_year_hidden: false,
-  spouse_death_year_hidden: false,
+  birth_year: 1950, death_year: 2010, deceased: true,
+  spouse_en: 'Sita', spouse_birth_year: 1952, spouse_death_year: 2012, spouse_deceased: true,
+  gender: 'M', notes: 'secret', death_year_hidden: false, spouse_death_year_hidden: false,
 };
 
-const FLAGS_OFF = { rows: [{ moderation_enabled: false, show_birth_year: false }] };
+// Tree gate flags read by treeFlags()/tree.js — both year toggles OFF by default.
+const FLAGS_OFF = {
+  rows: [{ moderation_enabled: false, show_years_deceased: false, show_birth_year_living: false }],
+};
 
 beforeEach(() => {
   pool.query.mockReset();
@@ -32,29 +36,42 @@ beforeEach(() => {
 });
 
 describe('GET /api/tree serialization', () => {
-  function mockTreeGet() {
+  function mockTreeGet(treeFlags = {}) {
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: TREE_ID, title_en: 'T', show_birth_year: false }] })
+      .mockResolvedValueOnce({ rows: [{ id: TREE_ID, title_en: 'T', ...treeFlags }] })
       .mockResolvedValueOnce({ rows: [FULL_PERSON] })
       .mockResolvedValueOnce({ rows: [] });
   }
 
-  it('public view: strips notes, birth years, and hide flags; keeps death year', async () => {
-    mockTreeGet();
+  it('public view (both toggles off): strips notes, all years, and hide flags', async () => {
+    mockTreeGet({ show_years_deceased: false, show_birth_year_living: false });
     const res = await request(app).get('/api/tree');
     expect(res.status).toBe(200);
     const p = res.body.persons[0];
     expect(p).not.toHaveProperty('notes');
     expect(p).not.toHaveProperty('birth_year');
+    expect(p).not.toHaveProperty('death_year'); // deceased + toggle off → stripped
     expect(p).not.toHaveProperty('spouse_birth_year');
+    expect(p).not.toHaveProperty('spouse_death_year');
     expect(p).not.toHaveProperty('death_year_hidden');
     expect(p).not.toHaveProperty('spouse_death_year_hidden');
-    expect(p.death_year).toBe(2010); // not force-hidden → shown
     expect(p.name_en).toBe('Ram');
   });
 
+  it('public view (show_years_deceased on): deceased person shows birth + death', async () => {
+    mockTreeGet({ show_years_deceased: true, show_birth_year_living: false });
+    const res = await request(app).get('/api/tree');
+    expect(res.status).toBe(200);
+    const p = res.body.persons[0];
+    expect(p.birth_year).toBe(1950);
+    expect(p.death_year).toBe(2010);
+    expect(p.spouse_birth_year).toBe(1952);
+    expect(p.spouse_death_year).toBe(2012);
+    expect(p).not.toHaveProperty('notes'); // notes still always private
+  });
+
   it('admin view: returns the full row including notes, birth year, and flags', async () => {
-    mockTreeGet();
+    mockTreeGet({ show_years_deceased: false, show_birth_year_living: false });
     const res = await request(app).get('/api/tree').set('Cookie', ADMIN_COOKIE);
     expect(res.status).toBe(200);
     const p = res.body.persons[0];

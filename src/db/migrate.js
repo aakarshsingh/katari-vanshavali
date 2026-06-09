@@ -77,6 +77,15 @@ async function runMigrations() {
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS death_year_hidden BOOLEAN NOT NULL DEFAULT FALSE`);
     await client.query(`ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year_hidden BOOLEAN NOT NULL DEFAULT FALSE`);
 
+    // Pivot R5 (2.21A): life-status year visibility. Two global toggles replace the
+    // single show_birth_year + per-person death_year_hidden model (now dormant).
+    // `show_years_deceased`  ON → deceased people show BOTH birth + death years.
+    // `show_birth_year_living` ON → living people show their birth year (no death year).
+    // Both default OFF (no years public on first deploy). Additive + idempotent;
+    // the legacy columns above are left in place but no longer read by the serializer.
+    await client.query(`ALTER TABLE tree ADD COLUMN IF NOT EXISTS show_years_deceased BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE tree ADD COLUMN IF NOT EXISTS show_birth_year_living BOOLEAN NOT NULL DEFAULT FALSE`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS admin_user (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

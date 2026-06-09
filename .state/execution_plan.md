@@ -2052,9 +2052,9 @@ from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocke
 | 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Completed |
 | 2.19 | Admin "Show birth year" dashboard toggle | Completed |
 | 2.20 | Local round-trip test on mock DB (manual E2E) | Deferred |
-| 2.21A | Amend: life-status visibility schema + serializer (R5) | Pending |
-| 2.22A | Amend: settings + two admin toggles + route wiring (R5) | Pending |
-| 2.23 | Pending-edit diff view (card/git-diff, not raw JSON) (R5) | Pending |
+| 2.21A | Amend: life-status visibility schema + serializer (R5) | Completed |
+| 2.22A | Amend: settings + two admin toggles + route wiring (R5) | Completed |
+| 2.23 | Pending-edit diff view (card/git-diff, not raw JSON) (R5) | Completed |
 | 2.24 | No-op guard (client + server) (R5) | Pending |
 | 2.25 | Admin edit-any-card from /admin.html (R5) | Pending |
 | 2.26 | Admin-editable ancestor lineage: seed + 1840–1940 caption + full editor (R5) | Pending |
@@ -3412,7 +3412,7 @@ _(Filled after verification)_
 
 ### Phase 2.21A: Amend - life-status visibility schema + serializer
 
-**Status:** Pending
+**Status:** Completed
 **Reason:** R5 replaces the single global `show_birth_year` + per-card
 `*_death_year_hidden` model (2.14-2.16) with two life-status-keyed global toggles.
 
@@ -3427,32 +3427,37 @@ _(Filled after verification)_
 - Edit form: deceased years editable; living suppresses the death-year input.
 
 **Verification:**
-- [ ] `node --check` both src files; `npm test` green (serializer matrix rewritten).
-- [ ] dev:mock: public GET hides all years by default; deceased toggle reveals both; living toggle reveals birth only.
+- [x] `node --check` both src files; serializer suite **17/17** in isolation. Full `npm test` green after 2.22A wired the routes (see below): **114/114**.
+- [x] dev:mock: public GET hides all years by default; `show_years_deceased` reveals both (Dharamsheela Roy → 1950/2011); `show_birth_year_living` reveals living birth only (Keshav → 1998, no death_year).
 
 **Definition of Done:**
-- [ ] Serializer keys solely off life-status flags; legacy params unread.
-- [ ] New columns additive + idempotent; legacy columns left dormant.
+- [x] Serializer keys solely off life-status flags; legacy params unread.
+- [x] New columns additive + idempotent; legacy columns left dormant.
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
-- [ ] Amendment doesn't break other completed phases
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+- [x] Amendment doesn't break other completed phases
 
 **Completion Record:**
-_(Filled after verification)_
+- Added `tree.show_years_deceased` + `tree.show_birth_year_living` (idempotent ALTERs) beside the now-dormant 2.14 columns in `migrate.js`. Confirmed pg-mem applies them ("Migrations complete").
+- Rewrote `serializePerson` to `{isAdmin, showYearsDeceased, showBirthYearLiving}`, keyed off `deceased`/`spouse_deceased`: deceased → both years iff deceased-toggle; living → birth iff living-toggle, death never shown; spouse symmetric; `notes` + legacy `*_hidden` flags always stripped for public. Immutable (`{...row}`).
+- Rewrote `tests/serializer.test.js` into the two-flag/life-status matrix (17 tests: admin passthrough, always-private, deceased on/off, living on/off + death-never, spouse mirror, mixed, defaults, list).
+- **Deviation (flagged):** `public/js/sidebar.js` was a listed target but needed **no change** — the existing `setLiving`/`setSpouseLiving` already make deceased years editable and suppress the death-year input for living people. Left untouched to keep the diff minimal (DoD already satisfied).
+- **Phase-boundary note:** changing the serializer contract turned `tree.js`/`persons.js` callers stale, so full-suite green is achieved jointly with 2.22A (route wiring) per the session goal. Serializer suite + `node --check` passed standalone first.
+- **Field note:** admin `/api/auth/setup` enforces a username min-length (a 1-char username → 400). Use ≥ the configured minimum when seeding admins in smoke tests.
 
 ### Phase 2.22A: Amend - settings + two admin toggles + route wiring
 
-**Status:** Pending
+**Status:** Completed
 **Reason:** Expose/toggle the two new flags; retire the single "Show birth year" toggle.
 
 **Target Files:**
@@ -3462,30 +3467,36 @@ _(Filled after verification)_
 - `tests/changes.test.js` (settings tests live here) + `tests/persons.test.js` - update assertions.
 
 **Verification:**
-- [ ] `npm test` green; dev:mock PATCH each flag reflects in GET and in public tree.
+- [x] `npm test` green (**114/114**, was 107). dev:mock: PATCH `show_years_deceased`/`show_birth_year_living` each reflected in GET /api/settings and in the public /api/tree serialization (deceased + living samples confirmed).
 
 **Definition of Done:**
-- [ ] Both flags toggle independently (admin-only); public serialization respects them.
+- [x] Both flags toggle independently (admin-only); public serialization respects them.
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
-- [ ] Amendment doesn't break other completed phases
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+- [x] Amendment doesn't break other completed phases
 
 **Completion Record:**
-_(Filled after verification)_
+- `settings.js`: `BOOLEAN_SETTINGS` now `['moderation_enabled','show_years_deceased','show_birth_year_living']`; added a `settingsPayload()` shaper; GET/PATCH expose the two new flags. Retired `show_birth_year` removed from the active settings surface (column left dormant).
+- `tree.js`: GET serializes persons with `{showYearsDeceased, showBirthYearLiving}` from the tree row.
+- `persons.js`: `treeFlags()` now returns `{moderation, yearOpts}`; POST/PATCH spread `...yearOpts` into `serializePerson`. DELETE unaffected (destructures `moderation` only).
+- `admin-api.js`: replaced `setShowBirthYear` with `setShowYearsDeceased` + `setShowBirthYearLiving`.
+- `admin-app.js`: `renderModeration` renders three toggles (moderation + deceased-years + living-birth-year) via the existing `wireSettingToggle` helper; retired the single `sby-toggle`.
+- Tests: updated `tests/changes.test.js` settings block (3-flag payloads, both year toggles, 401/400 paths) and `tests/persons.test.js` (FULL_PERSON now deceased; FLAGS_OFF 3-flag shape; public default strips all years; added a `show_years_deceased`-on case; admin full row).
+- No deviations.
 
 ### Phase 2.23: Pending-edit diff view (card / git-diff, not raw JSON)
 
-**Status:** Pending
+**Status:** Completed
 **Reason:** The admin moderation queue (`renderQueue`) currently dumps the proposed
 `payload` as a raw JSON textarea, so a reviewer can't see *what changed* vs. the
 current record. A `diffHtml(before, after)` helper already exists in `admin-app.js`
@@ -3497,26 +3508,30 @@ current record. A `diffHtml(before, after)` helper already exists in `admin-app.
 - `public/css/admin.css` - reuse existing `.diff/.diff-from/.diff-to` styling; minor additions if needed.
 
 **Verification:**
-- [ ] dev:mock: submit a non-admin person edit under moderation → queue shows a readable field-level diff (from → to), not raw JSON.
-- [ ] create/delete entries still read clearly; approve/reject still work; `npm test` green.
+- [x] dev:mock: enabled moderation, submitted a non-admin person edit → 202 queued; pending row carries `payload={name_en:"Bhukhi Singh (edited)"}` + `target_id`; admin `getTree` yields the `before` record (`name_en:"Bhukhi Singh"`) → `diffHtml(before,payload)` renders `Name: Bhukhi Singh → Bhukhi Singh (edited)`. All diff inputs confirmed present.
+- [x] `npm test` green (**114/114**); `node --check` clean. Approve/reject path unchanged (`.q-payload` still present inside `<details>`). Browser DOM paint deferred to manual/2.20 (consistent with prior frontend phases).
 
 **Definition of Done:**
-- [ ] Pending person edits render as a before→after diff; reviewer sees exactly what changed without reading JSON.
+- [x] Pending person edits render as a before→after diff; reviewer sees exactly what changed without reading JSON.
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-_(Filled after verification)_
+- `admin-app.js`: added `fieldListHtml(obj)` + `pendingDetailHtml(row, personMap)`; `reloadQueue` now fetches `adminApi.getTree()` once, builds a `personMap`, and renders the human-readable detail (person edit → `diffHtml(before, payload)`; create → field list; delete → name; tree → field list). Raw JSON textarea moved into a collapsed `<details class="q-raw">` so `Edit & approve` still works while the diff is primary.
+- `admin-api.js`: added `getTree()` (admin → full rows, the `before` source).
+- `admin.css`: added `.q-diff` / `.q-raw` styling; reuses existing `.diff*` rules.
+- Best-effort: if the tree fetch fails, the queue still renders via the field-list fallback (no diff).
+- No deviations. Browser-tier visual paint deferred (consistent with prior frontend phases); all data/logic verified on dev:mock.
 
 ### Phase 2.24: No-op guard (client + server)
 
