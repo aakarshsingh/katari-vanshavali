@@ -2051,7 +2051,13 @@ from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocke
 | 2.17 | settings show_birth_year + changes whitelist + applyChange merge (+ test) | Completed |
 | 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Completed |
 | 2.19 | Admin "Show birth year" dashboard toggle | Completed |
-| 2.20 | Local round-trip test on mock DB (manual E2E) | Pending |
+| 2.20 | Local round-trip test on mock DB (manual E2E) | Deferred |
+| 2.21A | Amend: life-status visibility schema + serializer (R5) | Pending |
+| 2.22A | Amend: settings + two admin toggles + route wiring (R5) | Pending |
+| 2.23 | Pending-edit diff view (card/git-diff, not raw JSON) (R5) | Pending |
+| 2.24 | No-op guard (client + server) (R5) | Pending |
+| 2.25 | Admin edit-any-card from /admin.html (R5) | Pending |
+| 2.26 | Admin-editable ancestor lineage: seed + 1840–1940 caption + full editor (R5) | Pending |
 
 > **Phases 2.8a + 2.20 (added 2026-06-07b):** Local mock-DB testing track. **2.8a**
 > adds an in-memory Postgres (`pg-mem`) behind `USE_MOCK_DB` + a `dev:mock` launcher,
@@ -3393,3 +3399,225 @@ Railway. Catches integration issues that unit tests with a mocked pool cannot.
 **Completion Record:**
 _(Filled after verification)_
 
+
+---
+
+# Pivot R5 — appended 2026-06-09 (feedback: lineage, life-status year visibility, edit-as-card, admin edit, no-op guard, admin lineage editor)
+
+> Baseline: Phases 2.0-2.19 done & committed (`6d0976f`), 107/107 tests green; 2.20
+> deferred. R5 amends the 2.14-2.19 visibility model and adds feature phases.
+> Controlling inputs: the `[AMENDED 2026-06-09 - Pivot R5]` sections of
+> `requirements.md` and `architecture_decisions.md`. **Approved for append; NOT yet
+> executed** - run `/as-p5-execute` one phase per session, architect approval between.
+
+### Phase 2.21A: Amend - life-status visibility schema + serializer
+
+**Status:** Pending
+**Reason:** R5 replaces the single global `show_birth_year` + per-card
+`*_death_year_hidden` model (2.14-2.16) with two life-status-keyed global toggles.
+
+**Target Files:**
+- `src/db/migrate.js` - add `tree.show_years_deceased`, `tree.show_birth_year_living` (idempotent).
+- `src/serializers/person.js` - rewrite signature to `{isAdmin, showYearsDeceased, showBirthYearLiving}`; key off `deceased`/`spouse_deceased`.
+- `tests/serializer.test.js` - rewrite matrix for the two flags + spouse symmetry.
+- `public/js/sidebar.js` - client companion: deceased → birth+death year inputs editable; living → death-year input suppressed (no edit-form card restyle).
+
+**Changes:**
+- Deceased: keep birth+death iff `showYearsDeceased`. Living: keep birth iff `showBirthYearLiving`, always strip death. Spouse symmetric. `notes` + legacy flags always stripped for public.
+- Edit form: deceased years editable; living suppresses the death-year input.
+
+**Verification:**
+- [ ] `node --check` both src files; `npm test` green (serializer matrix rewritten).
+- [ ] dev:mock: public GET hides all years by default; deceased toggle reveals both; living toggle reveals birth only.
+
+**Definition of Done:**
+- [ ] Serializer keys solely off life-status flags; legacy params unread.
+- [ ] New columns additive + idempotent; legacy columns left dormant.
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+### Phase 2.22A: Amend - settings + two admin toggles + route wiring
+
+**Status:** Pending
+**Reason:** Expose/toggle the two new flags; retire the single "Show birth year" toggle.
+
+**Target Files:**
+- `src/routes/settings.js` - GET exposes both flags; PATCH `BOOLEAN_SETTINGS` extended.
+- `src/routes/tree.js`, `src/routes/persons.js` - pass both flags into the serializer.
+- `public/js/admin/admin-api.js`, `public/js/admin/admin-app.js` - two toggles ("Show years for deceased", "Show birth year for living"); retire old toggle.
+- `tests/changes.test.js` (settings tests live here) + `tests/persons.test.js` - update assertions.
+
+**Verification:**
+- [ ] `npm test` green; dev:mock PATCH each flag reflects in GET and in public tree.
+
+**Definition of Done:**
+- [ ] Both flags toggle independently (admin-only); public serialization respects them.
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+- [ ] Amendment doesn't break other completed phases
+
+**Completion Record:**
+_(Filled after verification)_
+
+### Phase 2.23: Pending-edit diff view (card / git-diff, not raw JSON)
+
+**Status:** Pending
+**Reason:** The admin moderation queue (`renderQueue`) currently dumps the proposed
+`payload` as a raw JSON textarea, so a reviewer can't see *what changed* vs. the
+current record. A `diffHtml(before, after)` helper already exists in `admin-app.js`
+(used for resolved/history rows) — extend it to the pending queue.
+
+**Target Files:**
+- `public/js/admin/admin-app.js` - `renderQueue`: for a pending person **edit**, render a before→after diff (reuse/extend `diffHtml`) by comparing the current record (`before`) against the proposed `payload` (`after`); show changed fields as `label: from → to`. Keep create/delete summaries readable. The editable JSON textarea may remain (collapsed/secondary) for approve-with-edits, or be replaced — decide in execute.
+- `public/js/admin/admin-api.js` - fetch the current record for `before` if not already available (reuse the People/tree fetch from 2.25).
+- `public/css/admin.css` - reuse existing `.diff/.diff-from/.diff-to` styling; minor additions if needed.
+
+**Verification:**
+- [ ] dev:mock: submit a non-admin person edit under moderation → queue shows a readable field-level diff (from → to), not raw JSON.
+- [ ] create/delete entries still read clearly; approve/reject still work; `npm test` green.
+
+**Definition of Done:**
+- [ ] Pending person edits render as a before→after diff; reviewer sees exactly what changed without reading JSON.
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+
+**Completion Record:**
+_(Filled after verification)_
+
+### Phase 2.24: No-op guard (client + server)
+
+**Status:** Pending
+
+**Target Files:**
+- `public/js/sidebar.js` / `public/js/mutate.js` - diff candidate payload vs current record; skip + toast "no changes" when empty.
+- `src/routes/persons.js` (PATCH) and `src/routes/changes.js` (submit) - drop keys equal to current; empty diff means no UPDATE / no queue insert / no history row.
+- `tests/persons.test.js`, `tests/changes.test.js` - no-op PATCH means no change_request, unchanged row returned.
+
+**Verification:**
+- [ ] `npm test` green incl. new no-op tests.
+- [ ] dev:mock: re-saving an unchanged card creates no queue/history entry.
+
+**Definition of Done:**
+- [ ] No-op edits never enqueue or commit; enforced server-side.
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+
+**Completion Record:**
+_(Filled after verification)_
+
+### Phase 2.25: Admin edit-any-card from /admin.html
+
+**Status:** Pending
+
+**Target Files:**
+- `public/js/admin/admin-api.js` - `listPersons`, `updatePerson` wrappers.
+- `public/js/admin/admin-app.js` - "People" view: list then pick then card edit then direct PATCH (no-op-guarded).
+- `public/admin.html`, `public/css/admin.css` - markup + styling for the People view.
+
+**Verification:**
+- [ ] dev:mock: admin lists persons, edits one, change applies directly; no-op blocked.
+- [ ] `npm test` green (no server changes expected beyond reuse).
+
+**Definition of Done:**
+- [ ] Admin can edit any person from the admin panel; direct apply; no-op-guarded.
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+
+**Completion Record:**
+_(Filled after verification)_
+
+### Phase 2.26: Admin-editable ancestor lineage (seed + caption + full editor)
+
+**Status:** Pending
+**Reason:** Combines former 2.26 (data fix) + 2.27 (caption) + 2.28 (admin editor)
+into one feature. Since the admin can build/edit the chain via the panel, the
+one-time seed script is folded in as the initial population; the 1840-1940 caption
+and the full add/remove/reorder/edit control ship together.
+
+**Target Files:**
+- `public/js/admin/admin-app.js` - new "Lineage" view: render the ancestor chain above the focal in order; edit each ancestor (name_en/name_hi/birth_year/death_year), insert/remove a generation, reorder, maintaining the single parent->child chain down to "Bade Lal Singh". Seed the initial 5 names (Titay->Jeevlal->Shukan->Gopal->Rameshwar, 1840-1940) via this UI or a one-shot helper.
+- `public/js/admin/admin-api.js` - person/relationship wrappers as needed (reuse 2.25).
+- `public/admin.html`, `public/css/admin.css` - Lineage view markup + styling.
+- `public/js/tree-render.js` - `renderAncestorStrip` adds a "1840-1940" (era) caption near the strip; dotted connector to the focal unchanged.
+- `public/css/main.css` - caption styling if needed.
+- Server: reuse existing admin `persons`/`relationships` routes; add a focused endpoint only if reorder/insert cannot be expressed with existing ones (decide in execute). No-op-guarded (2.24).
+
+**Changes:**
+- Ancestor line above the focal is fully admin-managed (add/remove/reorder/edit); the
+  `splitTree` single-child walk reflects edits; era caption shown on the strip.
+
+**Verification:**
+- [ ] dev:mock: seed/confirm the 5-name chain in order above the focal; admin edits a name/year, inserts and removes a generation, reorders; public strip + dotted connector reflect changes.
+- [ ] Chain integrity preserved (single parent->child path to "Bade Lal Singh"); no orphan/duplicate persons; idempotent seed; `npm test` green (render-smoke updated if needed).
+
+**Definition of Done:**
+- [ ] Ancestor lineage fully editable from the admin panel; initial 5 names seeded; "1840-1940" caption visible on the strip; no layout regression.
+
+**Self-Audit Checklist:**
+- [ ] Only target files touched
+- [ ] No public-facing changes without approval
+- [ ] Matches conventions.md conventions
+- [ ] No hardcoded secrets or tokens
+- [ ] No sensitive data in logs or errors
+- [ ] External input validated at boundaries
+- [ ] Error handling present where needed
+- [ ] No unjustified new dependencies
+- [ ] All tests pass
+- [ ] Changes are minimum necessary
+
+**Completion Record:**
+_(Filled after verification)_

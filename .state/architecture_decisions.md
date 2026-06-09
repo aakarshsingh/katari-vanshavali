@@ -567,3 +567,80 @@ ALTER TABLE person ADD COLUMN IF NOT EXISTS spouse_death_year_hidden BOOLEAN NOT
 | "Not in public DOM" vs hidden | Non-admins have `#admin-fields` **removed** from DOM; `collectForm`/`populateForm` null-guard |
 | Serializer must wrap **every** path persons are emitted | Audited paths: `tree.js` GET + `persons.js` POST/PATCH responses; change-history summaries already anonymized (no raw person emit) |
 | Boolean flag coercion (`'false'` string) | `requireBoolean` validates true booleans; routes coerce explicitly |
+
+# [AMENDED 2026-06-09 — Pivot R5] Life-status visibility, edit-as-card, admin edit, no-op guard, lineage
+
+> Supersedes the 2026-06-07 "Admin-Curated Public View" visibility mechanism. The
+> serializer's single `show_birth_year` param and the per-card `*_death_year_hidden`
+> flags are replaced by two life-status-keyed global flags. Other 2026-06-07
+> machinery (`pickPublicFields` whitelist, two-tier form, `applyChange` merge,
+> serializer-as-sole-control-point) is **retained**.
+
+## Visibility model (replaces global reveal + per-card hide)
+- **Schema (additive, idempotent):**
+  ```sql
+  ALTER TABLE tree ADD COLUMN IF NOT EXISTS show_years_deceased     BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE tree ADD COLUMN IF NOT EXISTS show_birth_year_living  BOOLEAN NOT NULL DEFAULT FALSE;
+  ```
+  The 2026-06-07 columns (`tree.show_birth_year`, `person.death_year_hidden`,
+  `person.spouse_death_year_hidden`) are left in place (additive history; harmless)
+  but **no longer read** by the serializer. Migration adds the two new columns only.
+- **`serializePerson(row, { isAdmin, showYearsDeceased, showBirthYearLiving })`** —
+  admin → full row. Public:
+  - person deceased → keep `birth_year`+`death_year` iff `showYearsDeceased`, else strip both.
+  - person living → keep `birth_year` iff `showBirthYearLiving`; always strip `death_year`.
+  - spouse symmetric on `spouse_deceased` / `spouse_birth_year` / `spouse_death_year`.
+  - `notes` and the legacy `*_hidden` flags always stripped for public.
+- **Routes:** `tree.js` GET and `persons.js` responses pass both flags from the
+  loaded `tree` row. `settings.js` GET exposes both; PATCH whitelists both
+  (`BOOLEAN_SETTINGS` extended) — old `show_birth_year` accepted-but-ignored or dropped.
+
+## Pending-edit diff view (R5-3)
+- The admin moderation queue (`admin-app.js` `renderQueue`) currently dumps the
+  proposed `payload` as a raw JSON textarea. Re-render pending **person edits** as a
+  field-level before→after diff (reuse the existing `diffHtml(before, after)` helper
+  already used for resolved/history rows): `before` = current record, `after` =
+  payload; show `label: from → to` for changed keys only. Create/delete stay as
+  readable summaries. Editable JSON textarea may remain secondary for
+  approve-with-edits (decide in execute). Reuses `.diff/.diff-from/.diff-to` CSS.
+- **Edit-form year behaviour** (rides with 2.21A on the client, not a separate card
+  restyle): deceased → birth+death year inputs editable; living → death-year input
+  suppressed. The form is **not** restyled into a card (that earlier reading was
+  dropped per 2026-06-09 feedback).
+
+## No-op guard (R5-4)
+- **Client** (`sidebar.js`/`mutate.js`): build the candidate payload, compare each
+  key to the current record; if no field differs, skip the call and toast "no changes".
+- **Server** (authoritative): in `persons.js` PATCH and `changes.js` submit, load the
+  current row and drop keys equal to current; if the resulting diff is empty →
+  no UPDATE / no queue insert / no history row; respond 200 with the unchanged row
+  (or 204), never creating a phantom change_request.
+
+## Admin edit-any-card (R5-5)
+- `/admin.html` + `admin-app.js`: new "People" view — list persons (`GET /api/tree`
+  with admin cookie → full rows), pick one, edit in the card form, `PATCH
+  /api/persons/:id` (admin, direct apply, no-op-guarded). `admin-api.js` gains
+  `listPersons`/`updatePerson` wrappers. Reuses existing admin auth + serializer.
+
+## Ancestor lineage (R5-6)
+- **Data:** `splitTree` already derives the ancestor strip by walking single-child
+  links from the root down to "Bade Lal Singh". So the change is **data**: ensure the
+  rows above the focal are exactly Titay→Jeevlal→Shukan→Gopal→Rameshwar (one
+  parent→child chain), with `birth_year`/`death_year` spanning 1840–1940. Idempotent
+  data-fix script (match by name; create/relink as needed) run on `dev:mock` then prod.
+- **Render:** `tree-render.js` `renderAncestorStrip` gains a small **"1840–1940"**
+  caption near the strip. Dotted orthogonal connector (Rameshwar → Bade Lal Singh)
+  already exists — unchanged. No layout-engine change.
+
+## Test strategy (R5)
+- Extend jest+supertest: rewrite `tests/serializer.test.js` for the two-flag matrix
+  (deceased on/off, living on/off, spouse symmetry, notes always stripped); extend
+  `tests/persons.test.js` + settings tests for the new flags and the no-op guard
+  (PATCH with identical fields → no change_request / no history). Lineage data-fix +
+  card restyle + admin People view verified on `dev:mock` (manual, browser), per
+  prior frontend phases.
+
+## Open question deferred to execute
+- Whether to physically drop the legacy `show_birth_year`/`*_death_year_hidden`
+  columns (a destructive migration) or leave them dormant. **Default: leave dormant**
+  (additive-only convention); revisit only if cleanup is requested.

@@ -13,8 +13,9 @@ Net-new feature cycle on top of completed Phase 1 (below). Workflow position:
 > **2.20** (manual local round-trip on dev:mock) is **deferred** by user — do later.
 > **NEXT = Pivot R5:** new feedback (2026-06-09) — seed Katari lineage (Titay→
 > Jeevlal→Shukan→Gopal→Rameshwar, 1840–1940); show+edit birth/death years for
-> deceased, hide years for living; render edit-person as a card; add admin
-> edit-any-card with a no-op guard (queue an edit only if fields actually changed).
+> deceased, hide years for living; render pending edits as a readable diff (not raw
+> JSON); add admin edit-any-card with a no-op guard (queue an edit only if fields
+> actually changed); admin-editable ancestor lineage.
 > Run `/as-p7-pivot` to append phases, then `/as-p5-execute` per phase.
 >
 > ✅ **SECURITY GAP CLOSED (2.14–2.17):** the public/unauthenticated API no longer
@@ -147,9 +148,19 @@ _Pending feedback — Pivot R5 (2026-06-09), awaiting plan/approval:_
 2. **Year visibility flip:** show **and allow editing** birth+death years for
    **deceased** people; **hide** years for **living** people. (Revisits the
    earlier "death year hidden by default" stance — now keyed off living/deceased.)
-3. **Edit-person as a card:** the edit-person UI should present as a card.
+3. **Pending-edit diff view:** queued edits in the admin moderation panel should
+   render as a readable diff (card / git-diff `from → to`), not raw JSON.
 4. **Admin edit-any-card + no-op guard:** admin can edit any card from the panel;
    only enqueue/commit an edit when fields actually changed (no-op edits seen).
+5. **Admin-editable lineage line:** the 5-name ancestor line is fully editable from
+   the admin panel (add/remove/reorder/edit) + seeded + 1840–1940 caption (Phase 2.26).
+
+**R5 planned & appended (2026-06-09), awaiting `/as-p5-execute`:** phases **2.21A,
+2.22A, 2.23, 2.24, 2.25, 2.26** in `execution_plan.md`; requirements/architecture carry
+`[AMENDED 2026-06-09 — Pivot R5]` sections. Visibility model amended to TWO global
+life-status toggles (`tree.show_years_deceased`, `tree.show_birth_year_living`),
+retiring the single `show_birth_year` + per-card hide flags. 107/107 tests green at
+baseline `6d0976f`. **Not yet executed.**
 
 ## How this app is built (orientation)
 

@@ -451,3 +451,60 @@ tree presentation are otherwise **unchanged**.
 - `docs/seed.json` — retained backup; `src/db/seed.js`, `scripts/seed-pdf.js` — to delete.
 - Memory: `feedback_api_shape` (raw objects), `feedback_design_palette`,
   `feedback_plan_first` (freeze plan before code).
+
+## [AMENDED 2026-06-09 — Pivot R5] Life-status year visibility, edit-as-card, admin edit, no-op guard, ancestor lineage
+
+> **Supersedes** the 2026-06-07 "Birth Year — global admin reveal toggle" and
+> "Death Year — admin per-card force-hide" model. The single `tree.show_birth_year`
+> flag and the per-card `person.death_year_hidden`/`spouse_death_year_hidden` flags
+> are **retired** in favour of two life-status-keyed global toggles below.
+> Implemented as amend/new phases 2.21–2.27 (2.20 remains deferred).
+
+### Year visibility — two global toggles keyed off life-status (R5-1)
+- [ ] Schema: `tree.show_years_deceased BOOLEAN NOT NULL DEFAULT FALSE` and
+      `tree.show_birth_year_living BOOLEAN NOT NULL DEFAULT FALSE` (idempotent ALTERs).
+- [ ] **Deceased person** (`deceased = true`): when `show_years_deceased` is ON, the
+      public card shows **both birth and death years**; when OFF, neither.
+- [ ] **Living person** (`deceased = false`): when `show_birth_year_living` is ON, the
+      public card shows the **birth year only** (living people have no death year);
+      when OFF, no year. A death year is **never** shown for a living person.
+- [ ] Spouse mirrors the person rule, keyed off `spouse_deceased`.
+- [ ] Both default **FALSE** (no years public on first deploy).
+- [ ] `GET /api/settings` payload extends with both flags; `PATCH /api/settings`
+      (admin only) toggles either/both alongside `moderation_enabled`.
+- [ ] `serializePerson` rewritten to apply these rules; `notes` still always
+      stripped for the public.
+
+### Deceased years editable (R5-2)
+- [ ] An admin can edit birth and death years for deceased people via the edit form.
+      Living people: the death-year input is suppressed/ignored.
+
+### Pending-edit diff view (R5-3)
+- [ ] Pending edits in the admin moderation queue render as a readable **diff**
+      (card / git-diff style, field-level `from → to`) instead of raw JSON, so the
+      reviewer sees exactly what changed. Reuse the existing `diffHtml` helper
+      (currently used only for resolved/history rows) for pending person edits.
+      Phase 2.23.
+
+### No-op guard (R5-4)
+- [ ] An edit is only enqueued (moderation ON) or committed (moderation OFF / admin)
+      when at least one field actually changed vs. the current record. No-op edits
+      produce no queue entry and no history row. Enforced client-side (UX) and
+      server-side (authoritative).
+
+### Admin edit-any-card from the admin panel (R5-5)
+- [ ] `/admin.html` gains a person picker/list + edit form that applies changes
+      directly (admin path, subject to the no-op guard).
+
+### Admin-editable ancestor lineage (R5-6, combines former R5-6 + R5-7) — Phase 2.26
+- [ ] The ancestor line above the focal "Bade Lal Singh" is seeded to exactly, in
+      sequence: Titay Singh → Jeevlal Singh → Shukan Singh → Gopal Singh →
+      Rameshwar Singh (single parent→child chain), replacing whatever currently sits
+      above the focal.
+- [ ] The era **1840–1940** is surfaced on the ancestor strip (caption/label).
+- [ ] The existing dotted connector from the last ancestor (Rameshwar) down into
+      Bade Lal Singh is preserved.
+- [ ] The line is **fully editable from the admin panel** (add/remove/reorder
+      generations, edit name/years) — a managed control, not a one-time seed script —
+      for future use cases. Chain integrity (single parent→child path to the focal)
+      preserved; idempotent; verifiable on `dev:mock`.
