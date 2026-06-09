@@ -2,6 +2,7 @@
 //   npm run dev:mock
 // No Postgres install required. Data is ephemeral (resets every restart).
 // USE_MOCK_DB must be set before any module that requires the db client.
+require('dotenv').config({ quiet: true }); // load .env (JWT_SECRET etc.) first
 process.env.USE_MOCK_DB = '1';
 
 const path = require('path');

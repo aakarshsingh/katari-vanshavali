@@ -1,3 +1,4 @@
+require('dotenv').config({ quiet: true }); // load .env when run standalone (npm run migrate)
 const pool = require('./client');
 
 async function runMigrations() {

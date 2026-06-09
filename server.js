@@ -1,3 +1,4 @@
+require('dotenv').config({ quiet: true }); // load .env into process.env (no-op if absent)
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
