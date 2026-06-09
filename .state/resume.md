@@ -3,13 +3,19 @@
 ## ▶ Phase 2 — Admin & Moderation (ACTIVE, started 2026-06-06)
 
 Net-new feature cycle on top of completed Phase 1 (below). Workflow position:
-**scope ✅ → design ✅ → plan ✅ → execute (IN PROGRESS: 2.0–2.17 + 2.8a done) → ship.**
+**scope ✅ → design ✅ → plan ✅ → execute (2.0–2.19 + 2.8a DONE) → 2.20 deferred → Pivot R5 (new feedback) NEXT.**
 
-> ▶ EXECUTION IN PROGRESS. Backend + client moderation pipeline + local pg-mem
-> done and committed (2026-06-07). **2.12 (public history) + 2.13 (admin page)
-> committed `819e8af`. 2.14–2.17 (field-visibility / API-lockdown serializer) done
-> 2026-06-07.** **Next: Phase 2.18** (two-tier edit form) via `/as-p5-execute`,
-> then 2.19 (admin "Show birth year" toggle), then 2.20 (local round-trip).
+> ▶ EXECUTION: **2.0–2.19 ALL DONE and committed.** Backend + client moderation
+> pipeline + local pg-mem committed (2026-06-07). **2.12 (public history) + 2.13
+> (admin page) committed `819e8af`; 2.14–2.17 (field-visibility / API-lockdown
+> serializer) committed `412621a`; 2.18 (two-tier edit form) + 2.19 (admin "Show
+> birth year" toggle) committed `6d0976f`.** **107/107 tests green.**
+> **2.20** (manual local round-trip on dev:mock) is **deferred** by user — do later.
+> **NEXT = Pivot R5:** new feedback (2026-06-09) — seed Katari lineage (Titay→
+> Jeevlal→Shukan→Gopal→Rameshwar, 1840–1940); show+edit birth/death years for
+> deceased, hide years for living; render edit-person as a card; add admin
+> edit-any-card with a no-op guard (queue an edit only if fields actually changed).
+> Run `/as-p7-pivot` to append phases, then `/as-p5-execute` per phase.
 >
 > ✅ **SECURITY GAP CLOSED (2.14–2.17):** the public/unauthenticated API no longer
 > returns hidden fields. `notes` + hide flags always stripped; `birth_year` gated by
@@ -135,8 +141,15 @@ User is collecting additional feedback before closing. When new items arrive,
 treat as **Pivot Round 5**: run `/as-p7-pivot` to append phases, then
 `/as-p5-execute` per phase. Keep this section as the scratchpad below.
 
-_Pending feedback (none yet):_
-- …
+_Pending feedback — Pivot R5 (2026-06-09), awaiting plan/approval:_
+1. **Seed lineage:** add the Katari root chain Titay Singh → Jeevlal Singh →
+   Shukan Singh → Gopal Singh → Rameshwar Singh (era 1840–1940).
+2. **Year visibility flip:** show **and allow editing** birth+death years for
+   **deceased** people; **hide** years for **living** people. (Revisits the
+   earlier "death year hidden by default" stance — now keyed off living/deceased.)
+3. **Edit-person as a card:** the edit-person UI should present as a card.
+4. **Admin edit-any-card + no-op guard:** admin can edit any card from the panel;
+   only enqueue/commit an edit when fields actually changed (no-op edits seen).
 
 ## How this app is built (orientation)
 

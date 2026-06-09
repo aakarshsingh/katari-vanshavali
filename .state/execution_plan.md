@@ -2050,7 +2050,7 @@ from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocke
 | 2.16 | Wire serializer/whitelist into tree GET + persons routes (+ tests) | Completed |
 | 2.17 | settings show_birth_year + changes whitelist + applyChange merge (+ test) | Completed |
 | 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Completed |
-| 2.19 | Admin "Show birth year" dashboard toggle | Pending |
+| 2.19 | Admin "Show birth year" dashboard toggle | Completed |
 | 2.20 | Local round-trip test on mock DB (manual E2E) | Pending |
 
 > **Phases 2.8a + 2.20 (added 2026-06-07b):** Local mock-DB testing track. **2.8a**
