@@ -44,13 +44,16 @@ function personName(p) {
 
 // --- Change description helpers (shared by queue + history) ---
 
-function describePending(row) {
+function describePending(row, personMap) {
   const { op_type, entity } = row;
   const p = row.payload || {};
+  const current = personMap && personMap[row.target_id];
   if (entity === 'person') {
     if (op_type === 'create') return 'Add person: ' + (p.name_en || '(unnamed)');
-    if (op_type === 'update') return 'Edit person';
-    if (op_type === 'delete') return 'Remove person';
+    // Always label WHO is being edited — read the live record by target_id, then
+    // fall back to the payload name (an admin-edited payload may rename) or '…'.
+    if (op_type === 'update') return 'Edit person: ' + (current ? personName(current) : (p.name_en || '…'));
+    if (op_type === 'delete') return 'Remove person' + (current ? ': ' + personName(current) : '');
   }
   if (entity === 'relationship') {
     return op_type === 'delete' ? 'Remove family link' : 'Add family link';
@@ -125,7 +128,7 @@ function describeResolved(row) {
       const p = (before && before.person) || before || {};
       return { action: 'Removed person: ' + personName(p), detail: '' };
     }
-    return { action: 'Edited person', detail: diffHtml(before, after) };
+    return { action: 'Edited person: ' + personName(after || before), detail: diffHtml(before, after) };
   }
   if (entity === 'relationship') {
     return { action: op_type === 'delete' ? 'Removed a family link' : 'Added a family link', detail: '' };
@@ -337,7 +340,7 @@ async function reloadQueue() {
     const detail = pendingDetailHtml(r, personMap);
     const payloadJson = esc(JSON.stringify(r.payload || {}, null, 2));
     return '<div class="q-card" data-id="' + esc(r.id) + '">' +
-      '<div class="q-title">' + esc(describePending(r)) + '</div>' +
+      '<div class="q-title">' + esc(describePending(r, personMap)) + '</div>' +
       '<div class="muted">submitted ' + esc(fmtDate(r.submitted_at)) + '</div>' + note +
       (detail ? '<div class="q-diff">' + detail + '</div>' : '') +
       '<details class="q-raw"><summary>Edit raw payload</summary>' +
@@ -513,7 +516,20 @@ function personFieldHtml(person, field) {
     const v = person[k] == null ? '' : person[k];
     control = `<input type="${t}" id="${id}" value="${esc(v)}" />`;
   }
-  return `<label>${esc(label)}${control}</label>`;
+  // A chip row directly after the English name fields (its previous sibling is
+  // the input) lets attachTransliterate find it and offer Hindi suggestions.
+  const chips = (k === 'name_en' || k === 'spouse_en') ? '<div class="chip-row"></div>' : '';
+  return `<label>${esc(label)}${control}${chips}</label>`;
+}
+
+// Wire English → Hindi transliteration chips for the person + spouse name fields,
+// reusing the public attachTransliterate with the admin fetcher. Preserves an
+// existing Hindi value (only fills a blank one) — see transliterate.js.
+function wirePersonTransliterate() {
+  if (typeof attachTransliterate !== 'function') return;
+  const opts = { translit: (t) => adminApi.transliterate(t) };
+  attachTransliterate(document.getElementById('pe-name_en'), document.getElementById('pe-name_hi'), opts);
+  attachTransliterate(document.getElementById('pe-spouse_en'), document.getElementById('pe-spouse_hi'), opts);
 }
 
 function openPersonEdit(id) {
@@ -526,10 +542,14 @@ function openPersonEdit(id) {
       '<div class="pe-head"><button type="button" class="btn btn-ghost" data-back>← Back</button>' +
       '<span class="pe-title">' + esc(personName(person)) + '</span></div>' +
       '<div class="pe-grid">' + fields + '</div>' +
-      '<button type="submit" class="btn">Save changes</button>' +
+      '<div class="pe-actions">' +
+        '<button type="submit" class="btn">Save changes</button>' +
+        '<button type="button" class="btn btn-danger" data-delete="' + esc(id) + '">Delete</button>' +
+      '</div>' +
       '<div class="form-error" id="pe-error" hidden></div>' +
       '<div class="form-ok" id="pe-ok" hidden></div>' +
     '</form>';
+  wirePersonTransliterate();
 }
 
 // Read the edit form into a payload with the right types (mirrors the public
@@ -564,6 +584,24 @@ function changedKeys(before, payload) {
   return out;
 }
 
+// Delete the person currently open in the editor (confirmed). The server cascades
+// their family links; on success we drop back to the refreshed list + history.
+async function deletePersonFromEditor(id) {
+  const person = _people.find((p) => p.id === id);
+  const label = person ? personName(person) : 'this person';
+  if (!window.confirm('Delete ' + label + '? This also removes their family links and cannot be undone.')) return;
+  const errEl = document.getElementById('pe-error');
+  if (errEl) errEl.hidden = true;
+  try {
+    await adminApi.deletePerson(id);
+    await reloadPeople();
+    await reloadHistory();
+  } catch (err) {
+    if (errEl) { errEl.textContent = err.message; errEl.hidden = false; }
+    else window.alert('Delete failed: ' + err.message);
+  }
+}
+
 function wirePeopleActions(box) {
   box.addEventListener('input', (e) => {
     if (e.target.id !== 'people-filter') return;
@@ -577,6 +615,8 @@ function wirePeopleActions(box) {
   box.addEventListener('click', (e) => {
     const editBtn = e.target.closest('button[data-edit]');
     if (editBtn) { openPersonEdit(editBtn.getAttribute('data-edit')); return; }
+    const delBtn = e.target.closest('button[data-delete]');
+    if (delBtn) { deletePersonFromEditor(delBtn.getAttribute('data-delete')); return; }
     if (e.target.closest('button[data-back]')) { reloadPeople(); }
   });
 
@@ -666,6 +706,7 @@ function renderLineageEditor() {
         '<button type="button" class="btn btn-ghost lin-mini" data-act="down"' + downDis + '>↓</button>' +
         '<button type="button" class="btn btn-danger lin-mini" data-act="remove">✕</button>' +
       '</span>' +
+      '<div class="lin-chips chip-row"></div>' +
     '</div>';
   }).join('');
 
@@ -681,6 +722,23 @@ function renderLineageEditor() {
     '</div>' +
     '<div class="form-error" id="lin-error" hidden></div>' +
     '<div class="form-ok" id="lin-ok" hidden></div>';
+  wireLineageTransliterate();
+}
+
+// English → Hindi chips for each ancestor row. Re-wired after every render (the
+// rows are rebuilt on add/remove/reorder/seed). The chip writes fire an input
+// event so the working `_lineage` array stays in sync for save.
+function wireLineageTransliterate() {
+  if (typeof attachTransliterate !== 'function') return;
+  const box = document.getElementById('lineage-box');
+  if (!box) return;
+  box.querySelectorAll('.lin-row').forEach((row) => {
+    attachTransliterate(
+      row.querySelector('input[data-field="name_en"]'),
+      row.querySelector('input[data-field="name_hi"]'),
+      { translit: (t) => adminApi.transliterate(t), container: row.querySelector('.lin-chips') }
+    );
+  });
 }
 
 function wireLineageActions(box) {

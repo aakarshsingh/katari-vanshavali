@@ -261,8 +261,8 @@ describe('changes routes', () => {
 
   test('POST /api/changes → 201 pending', async () => {
     pool.query
+      .mockResolvedValueOnce({ rows: [{ id: 't1', show_years_deceased: false }] }) // tree flags + id
       .mockResolvedValueOnce({ rows: [{ id: PID, name_en: 'Old' }] }) // current person (no-op diff)
-      .mockResolvedValueOnce({ rows: [{ id: 't1' }] }) // tree id
       .mockResolvedValueOnce({ rows: [{ id: 'c1', status: 'pending' }] }); // recordPending
     const res = await request(app)
       .post('/api/changes')
@@ -272,14 +272,16 @@ describe('changes routes', () => {
   });
 
   test('POST /api/changes → 200 noop when a person update matches the current record', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ id: PID, name_en: 'Same' }] }); // current person
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: 't1', show_years_deceased: false }] }) // tree flags + id
+      .mockResolvedValueOnce({ rows: [{ id: PID, name_en: 'Same' }] }); // current person
     const res = await request(app)
       .post('/api/changes')
       .send({ op_type: 'update', entity: 'person', target_id: PID, payload: { name_en: 'Same' }, client_token: 'tok' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'noop' });
-    // Only the current-person SELECT ran — no tree fetch, no recordPending insert.
-    expect(pool.query).toHaveBeenCalledTimes(1);
+    // Tree flags + current-person SELECT ran; the diff was empty so no recordPending insert.
+    expect(pool.query).toHaveBeenCalledTimes(2);
   });
 
   test('POST /api/changes → 400 on invalid op_type', async () => {
@@ -319,17 +321,39 @@ describe('changes routes', () => {
   });
 
   test('GET /api/changes/applied → anonymized history with summary', async () => {
-    pool.query.mockResolvedValueOnce({
-      rows: [{
-        id: 'c1', op_type: 'update', entity: 'person', target_id: PID,
-        before_snapshot: { name_en: 'Old' }, after_snapshot: { name_en: 'New' },
-        status: 'applied', resolved_at: '2026-01-01',
-      }],
-    });
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ show_years_deceased: false, show_birth_year_living: false }] }) // tree flags
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'c1', op_type: 'update', entity: 'person', target_id: PID,
+          before_snapshot: { name_en: 'Old' }, after_snapshot: { name_en: 'New' },
+          status: 'applied', resolved_at: '2026-01-01',
+        }],
+      });
     const res = await request(app).get('/api/changes/applied');
     expect(res.status).toBe(200);
     expect(res.body[0].summary).toMatchObject({ type: 'update' });
+    expect(res.body[0].summary.identity).toMatchObject({ name_en: 'New' }); // always labels who changed
     expect(res.body[0].resolved_by).toBeUndefined();
+  });
+
+  test('GET /api/changes/applied → withholds hidden year diffs but keeps name + identity', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ show_years_deceased: false, show_birth_year_living: false }] }) // toggles off
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'c2', op_type: 'update', entity: 'person', target_id: PID,
+          before_snapshot: { name_en: 'Ram', deceased: true, birth_year: null },
+          after_snapshot: { name_en: 'Raman', deceased: true, birth_year: 1950 },
+          status: 'applied', resolved_at: '2026-01-02',
+        }],
+      });
+    const res = await request(app).get('/api/changes/applied');
+    expect(res.status).toBe(200);
+    const changed = res.body[0].summary.changed;
+    expect(changed).toHaveProperty('name_en'); // name diff stays
+    expect(changed).not.toHaveProperty('birth_year'); // deceased year hidden while toggle off
+    expect(res.body[0].summary.identity).toMatchObject({ name_en: 'Raman' });
   });
 
   test('GET /api/changes/mine → 400 without token, rows with token', async () => {

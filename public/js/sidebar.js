@@ -62,10 +62,17 @@ function getSidebarEls() {
 // this at init time would always see admin:false. Removal is permanent for the
 // session; admin status doesn't change mid-session.
 function applyAdminTier() {
-  const isAdmin = !!(window.__moderation && window.__moderation.admin);
-  if (!isAdmin) {
-    document.querySelectorAll('#person-form .admin-only').forEach((el) => el.remove());
-  }
+  const mod = window.__moderation || {};
+  if (mod.admin) return; // admins keep the full detail tier
+  // When deceased years are public (show_years_deceased ON), non-admins keep the
+  // year tier (Living + birth/death, person and spouse) so they can contribute
+  // them through the normal approval path. Everything else admin-only (sequence,
+  // notes, hide-death flags) is still removed from the DOM — never readable or
+  // submittable. Toggle OFF → the whole admin-only tier is removed as before.
+  const selector = mod.showYearsDeceased
+    ? '#person-form .admin-only:not(.year-tier)'
+    : '#person-form .admin-only';
+  document.querySelectorAll(selector).forEach((el) => el.remove());
 }
 
 function showError(el, msg) {
@@ -115,22 +122,26 @@ function collectForm(els) {
     spouse_gender: married && spouseGenderEl ? spouseGenderEl.value : null,
   };
 
-  // Admin tier: detail fields exist only when .admin-only wasn't removed.
-  // `els.living` is the sentinel for the tier being present.
+  // Year tier (.year-tier): present for admins always, and for non-admins when
+  // deceased years are public. `els.living` is the sentinel. Person and spouse
+  // life-status are read independently (only one half may be deceased).
   if (els.living) {
     const deceased = !els.living.checked;                          // unchecked Living = deceased
     const spouseDeceased = married && !(els.spouseLiving && els.spouseLiving.checked);
     data.birth_year = els.birth && els.birth.value ? parseInt(els.birth.value, 10) : null;
     data.death_year = deceased && els.death && els.death.value ? parseInt(els.death.value, 10) : null;
-    data.sequence = els.seq && els.seq.value ? parseInt(els.seq.value, 10) : null;
     data.deceased = deceased;
     data.spouse_birth_year = married && els.spouseBirth && els.spouseBirth.value ? parseInt(els.spouseBirth.value, 10) : null;
     data.spouse_death_year = spouseDeceased && els.spouseDeath && els.spouseDeath.value ? parseInt(els.spouseDeath.value, 10) : null;
     data.spouse_deceased = spouseDeceased;
-    data.notes = els.notes ? (els.notes.value.trim() || null) : null;
-    data.death_year_hidden = !!(els.hideDeath && els.hideDeath.checked);
-    data.spouse_death_year_hidden = !!(els.spouseHideDeath && els.spouseHideDeath.checked);
   }
+  // Admin-only detail tier: only include keys whose inputs still exist, so a
+  // non-admin payload never carries (and the no-op guard never trips on)
+  // sequence / notes / hide-death the contributor can't actually set.
+  if (els.seq) data.sequence = els.seq.value ? parseInt(els.seq.value, 10) : null;
+  if (els.notes) data.notes = els.notes.value.trim() || null;
+  if (els.hideDeath) data.death_year_hidden = !!els.hideDeath.checked;
+  if (els.spouseHideDeath) data.spouse_death_year_hidden = !!els.spouseHideDeath.checked;
   return data;
 }
 

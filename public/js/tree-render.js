@@ -280,10 +280,15 @@ function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY
   // Era caption centred above the strip (styled via .ancestor-era in main.css).
   const stripW = ancestorChain.length * STRIP_BOX_W
     + Math.max(0, ancestorChain.length - 1) * STRIP_H_GAP;
+  // Presentation set inline (not only via .ancestor-era CSS) so the caption
+  // survives PNG/PDF export — canvg rasterizes the serialized SVG without the
+  // external stylesheet or its CSS variables, which is why it was vanishing.
   const caption = svgEl('text', {
     class: 'ancestor-era',
     x: startX + stripW / 2, y: startY - 7,
     'text-anchor': 'middle', 'dominant-baseline': 'middle',
+    'font-family': 'Georgia, serif', 'font-size': 12,
+    'font-style': 'italic', fill: '#9a8a70',
   });
   caption.textContent = ANCESTOR_ERA_CAPTION;
   group.appendChild(caption);

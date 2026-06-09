@@ -6,6 +6,7 @@ const { requireUUID } = require('../middleware/validate');
 const { applyChange, withTransaction } = require('../services/mutations');
 const { recordPending, recordApplied, summarize } = require('../services/changelog');
 const { pickPublicFields } = require('../lib/public-fields');
+const { serializePerson } = require('../serializers/person');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_OPS = ['create', 'update', 'delete'];
@@ -93,15 +94,18 @@ router.post('/', async (req, res) => {
   const { op_type, entity, target_id, payload, client_token, submitter_note } = req.body;
   const invalid = validateChange({ op_type, entity, target_id, payload });
   if (invalid) return res.status(400).json({ error: invalid });
-  // Defence in depth: a non-admin person submission can only queue whitelisted
-  // fields — a crafted payload can't smuggle detail fields (notes, years, hide
-  // flags) into the review queue. parent_id is structural, kept for add-child.
-  let safePayload = payload;
-  if (!req.admin && entity === 'person') {
-    safePayload = pickPublicFields(payload);
-    if (payload && payload.parent_id !== undefined) safePayload.parent_id = payload.parent_id;
-  }
   try {
+    // Defence in depth: a non-admin person submission can only queue whitelisted
+    // fields — a crafted payload can't smuggle detail fields (notes, hide flags)
+    // into the review queue. Deceased year/life-status fields are permitted only
+    // while the tree's show-years-deceased toggle is ON (same single tree read
+    // also yields tree_id). parent_id is structural, kept for add-child.
+    const treeRow = (await pool.query('SELECT id, show_years_deceased FROM tree LIMIT 1')).rows[0] || {};
+    let safePayload = payload;
+    if (!req.admin && entity === 'person') {
+      safePayload = pickPublicFields(payload, { allowDeceasedYears: treeRow.show_years_deceased === true });
+      if (payload && payload.parent_id !== undefined) safePayload.parent_id = payload.parent_id;
+    }
     // No-op guard: a person edit that matches the current record never enters the
     // queue. Diff against the live row and bail out before inserting.
     if (entity === 'person' && op_type === 'update' && target_id) {
@@ -113,10 +117,8 @@ router.post('/', async (req, res) => {
         }
       }
     }
-    const tree = await pool.query('SELECT id FROM tree LIMIT 1');
-    const tree_id = tree.rows[0] ? tree.rows[0].id : null;
     const row = await recordPending(null, {
-      tree_id, op_type, entity, target_id, payload: safePayload, client_token, submitter_note,
+      tree_id: treeRow.id || null, op_type, entity, target_id, payload: safePayload, client_token, submitter_note,
     });
     res.status(201).json({ id: row.id, status: row.status });
   } catch (err) {
@@ -140,9 +142,58 @@ router.get('/', requireAdmin, async (req, res) => {
   }
 });
 
+// A public identifier so the history panel can always label WHO changed —
+// names are public regardless of any year toggle.
+function identityOf(p) {
+  return { name_en: (p && p.name_en) || null, name_hi: (p && p.name_hi) || null };
+}
+
+// Which year keys in a person diff must be withheld from the PUBLIC history,
+// mirroring the serializer's life-status rule (person + spouse judged
+// separately, since only one half may be deceased). A living person never
+// exposes a death year; a deceased person's years need showYearsDeceased.
+function hiddenYearKeys(flat, { showYearsDeceased, showBirthYearLiving }) {
+  const hidden = [];
+  if (flat.deceased) { if (!showYearsDeceased) hidden.push('birth_year', 'death_year'); }
+  else { if (!showBirthYearLiving) hidden.push('birth_year'); hidden.push('death_year'); }
+  if (flat.spouse_deceased) { if (!showYearsDeceased) hidden.push('spouse_birth_year', 'spouse_death_year'); }
+  else { if (!showBirthYearLiving) hidden.push('spouse_birth_year'); hidden.push('spouse_death_year'); }
+  return hidden;
+}
+
+// Build the PUBLIC summary for one resolved row: always carries a name identity,
+// and never leaks a hidden year (create/delete run through the serializer; an
+// update's diff has hidden year keys stripped by life-status).
+function publicSummary(r, yearOpts) {
+  const before = r.before_snapshot;
+  const after = r.after_snapshot;
+  const summary = summarize(before, after);
+  if (r.entity !== 'person') return summary;
+  if (summary.type === 'create') {
+    const person = (after && after.person) || after || {};
+    const pub = serializePerson(person, yearOpts);
+    return { type: 'create', after: { person: pub }, identity: identityOf(pub) };
+  }
+  if (summary.type === 'delete') {
+    const person = (before && before.person) || before || {};
+    const pub = serializePerson(person, yearOpts);
+    return { type: 'delete', before: { person: pub }, identity: identityOf(pub) };
+  }
+  // update: before/after are flat person rows; gate the changed-field diff.
+  const flat = after || before || {};
+  const changed = { ...(summary.changed || {}) };
+  for (const k of hiddenYearKeys(flat, yearOpts)) delete changed[k];
+  return { type: 'update', changed, identity: identityOf(flat) };
+}
+
 // Public: anonymized history (applied + reverted), with a compact diff summary.
 router.get('/applied', async (req, res) => {
   try {
+    const t = await pool.query('SELECT show_years_deceased, show_birth_year_living FROM tree LIMIT 1');
+    const yearOpts = {
+      showYearsDeceased: !!(t.rows[0] && t.rows[0].show_years_deceased === true),
+      showBirthYearLiving: !!(t.rows[0] && t.rows[0].show_birth_year_living === true),
+    };
     const { rows } = await pool.query(
       `SELECT id, op_type, entity, target_id, before_snapshot, after_snapshot, status, submitted_at, resolved_at
          FROM change_request
@@ -155,7 +206,7 @@ router.get('/applied', async (req, res) => {
       entity: r.entity,
       status: r.status,
       resolved_at: r.resolved_at,
-      summary: summarize(r.before_snapshot, r.after_snapshot),
+      summary: publicSummary(r, yearOpts),
     }));
     res.json(history);
   } catch (err) {

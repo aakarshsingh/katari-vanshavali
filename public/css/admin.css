@@ -136,6 +136,7 @@ textarea { font-family: ui-monospace, 'Courier New', monospace; font-size: 0.8re
   margin-bottom: 4px;
 }
 .pe-grid .switch { align-self: end; padding-bottom: 7px; justify-content: space-between; }
+.pe-actions { display: flex; gap: 10px; align-items: center; }
 @media (max-width: 720px) { .pe-grid { grid-template-columns: 1fr; } }
 
 /* ── Ancestor lineage editor ── */
@@ -143,10 +144,12 @@ textarea { font-family: ui-monospace, 'Courier New', monospace; font-size: 0.8re
 .lin-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 5px 0;
   border-bottom: 1px solid var(--chip-bg);
 }
+.lin-chips { flex: 0 0 100%; margin-left: 30px; }
 .lin-gen {
   flex: 0 0 auto;
   width: 22px;
@@ -198,6 +201,19 @@ textarea { font-family: ui-monospace, 'Courier New', monospace; font-size: 0.8re
 .diff-field { color: var(--ink-faint); }
 .diff-from { text-decoration: line-through; color: var(--red); }
 .diff-to { color: var(--accent); }
+
+/* ── Transliteration chips (mirrors the public sidebar) ── */
+.chip-row { display: flex; flex-wrap: wrap; gap: 5px; min-height: 22px; margin-top: 6px; }
+.chip-row:empty { min-height: 0; margin: 0; }
+.chip {
+  display: inline-flex; align-items: center; padding: 5px 12px;
+  background: var(--chip-bg); border: 1px solid var(--border); border-radius: 14px;
+  cursor: pointer; font-family: 'Noto Sans Devanagari', Georgia, serif;
+  font-size: 1rem; color: var(--ink);
+}
+.chip:hover { background: var(--border); border-color: var(--ink-muted); }
+.chip-spinner { display: inline-flex; align-items: center; font-size: 0.75rem; color: var(--ink-faint); font-style: italic; }
+.chip-msg { font-size: 0.72rem; color: var(--ink-faint); font-style: italic; }
 
 @media (max-width: 720px) {
   .admin-grid { grid-template-columns: 1fr; }

@@ -81,7 +81,9 @@ function _hDescribe(entry) {
       const p = (s.before && s.before.person) || s.before || {};
       return { action: 'Removed person', detail: _hEsc(_hPersonName(p)) };
     }
-    return { action: 'Edited person', detail: _hChangedHtml(s.changed) };
+    // Always name WHO changed (identity is sent by the server alongside the diff).
+    const who = s.identity ? _hPersonName(s.identity) : '';
+    return { action: who ? 'Edited person: ' + who : 'Edited person', detail: _hChangedHtml(s.changed) };
   }
   if (entity === 'relationship') {
     if (s.type === 'delete') return { action: 'Removed a family link', detail: '' };

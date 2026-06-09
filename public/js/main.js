@@ -55,10 +55,11 @@ function renderTitle() {
 // Load moderation + admin state into a global the mutation chokepoint reads.
 // Any failure degrades to OFF / not-admin and never blocks the tree load.
 async function loadModerationState() {
-  const moderation = { enabled: false, admin: false };
+  const moderation = { enabled: false, admin: false, showYearsDeceased: false };
   try {
     const settings = await api.getSettings();
     moderation.enabled = settings.moderation_enabled === true;
+    moderation.showYearsDeceased = settings.show_years_deceased === true;
   } catch (err) {
     console.warn('Settings load failed; moderation defaults OFF:', err.message);
   }
@@ -345,5 +346,5 @@ function wireExportDialog() {
 }
 
 window.__state = state;
-window.__moderation = { enabled: false, admin: false };
+window.__moderation = { enabled: false, admin: false, showYearsDeceased: false };
 document.addEventListener('DOMContentLoaded', init);

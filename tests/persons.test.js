@@ -106,11 +106,34 @@ describe('POST /api/persons whitelist', () => {
 
 describe('PATCH /api/persons/:id whitelist + hide flags', () => {
   it('non-admin PATCH of only detail fields → 400 (whitelist drops them all)', async () => {
+    pool.query.mockResolvedValueOnce(FLAGS_OFF); // treeFlags (both toggles off)
     const res = await request(app)
       .patch(`/api/persons/${PERSON_ID}`)
       .send({ birth_year: 1990, notes: 'x' });
-    expect(res.status).toBe(400); // payload empty after whitelist
+    expect(res.status).toBe(400); // payload empty after whitelist (years admin-only while toggle off)
     expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  it('non-admin PATCH with show_years_deceased ON → deceased years pass the whitelist', async () => {
+    const FLAGS_DECEASED_ON = {
+      rows: [{ moderation_enabled: false, show_years_deceased: true, show_birth_year_living: false }],
+    };
+    pool.query
+      .mockResolvedValueOnce(FLAGS_DECEASED_ON) // treeFlags
+      .mockResolvedValueOnce({ rows: [FULL_PERSON] }); // SELECT current (no-op guard)
+    pool.__client.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({ rows: [FULL_PERSON] }) // SELECT before
+      .mockResolvedValueOnce({ rows: [{ ...FULL_PERSON, death_year: 2011 }] }) // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 'cr1' }] }) // recordApplied
+      .mockResolvedValueOnce({}); // COMMIT
+    const res = await request(app)
+      .patch(`/api/persons/${PERSON_ID}`)
+      .send({ death_year: 2011, notes: 'still-private' }); // year allowed, notes still dropped
+    expect(res.status).toBe(200);
+    const updateSql = pool.__client.query.mock.calls[2][0];
+    expect(updateSql).toContain('death_year'); // year written through the public path
+    expect(updateSql).not.toContain('notes'); // notes remain admin-only
   });
 
   it('admin PATCH can set death_year_hidden', async () => {

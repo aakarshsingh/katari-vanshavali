@@ -27,8 +27,8 @@ async function treeFlags() {
 // Build the writable payload for a person request. Non-admins are reduced to the
 // public whitelist; parent_id is structural (not a protected detail field) so it
 // survives for add-child. Admins keep the full field set (incl. the hide flags).
-function personPayload(req, { withParent }) {
-  const incoming = req.admin ? req.body : pickPublicFields(req.body);
+function personPayload(req, { withParent, allowDeceasedYears }) {
+  const incoming = req.admin ? req.body : pickPublicFields(req.body, { allowDeceasedYears });
   if (!req.admin && withParent && req.body.parent_id !== undefined) {
     incoming.parent_id = req.body.parent_id;
   }
@@ -71,9 +71,9 @@ router.post(
   requireBoolean('death_year_hidden'),
   requireBoolean('spouse_death_year_hidden'),
   async (req, res) => {
-    const payload = personPayload(req, { withParent: true });
     try {
       const { moderation, yearOpts } = await treeFlags();
+      const payload = personPayload(req, { withParent: true, allowDeceasedYears: yearOpts.showYearsDeceased });
       if (moderation && !req.admin) {
         const tree = await pool.query('SELECT id FROM tree LIMIT 1');
         const cr = await recordPending(null, {
@@ -114,10 +114,10 @@ router.patch(
   requireBoolean('spouse_death_year_hidden'),
   async (req, res) => {
     const { id } = req.params;
-    const payload = personPayload(req, { withParent: false });
-    if (Object.keys(payload).length === 0) return res.status(400).json({ error: 'No fields to update' });
     try {
       const { moderation, yearOpts } = await treeFlags();
+      const payload = personPayload(req, { withParent: false, allowDeceasedYears: yearOpts.showYearsDeceased });
+      if (Object.keys(payload).length === 0) return res.status(400).json({ error: 'No fields to update' });
       // No-op guard: fetch the current record and drop unchanged keys. An empty
       // diff is returned unchanged with no queue insert, UPDATE, or history row.
       const cur = await pool.query('SELECT * FROM person WHERE id = $1', [id]);

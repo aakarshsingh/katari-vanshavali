@@ -2051,13 +2051,14 @@ from `docs/seed.json` when DB empty. Tests: jest + supertest, `pool.query` mocke
 | 2.17 | settings show_birth_year + changes whitelist + applyChange merge (+ test) | Completed |
 | 2.18 | Two-tier edit form (#admin-fields removal + hide-death checkboxes) | Completed |
 | 2.19 | Admin "Show birth year" dashboard toggle | Completed |
-| 2.20 | Local round-trip test on mock DB (manual E2E) | Deferred |
+| 2.20 | Local round-trip test on mock DB (manual E2E) | Cancelled (verified live on Railway) |
 | 2.21A | Amend: life-status visibility schema + serializer (R5) | Completed |
 | 2.22A | Amend: settings + two admin toggles + route wiring (R5) | Completed |
 | 2.23 | Pending-edit diff view (card/git-diff, not raw JSON) (R5) | Completed |
-| 2.24 | No-op guard (client + server) (R5) | Pending |
-| 2.25 | Admin edit-any-card from /admin.html (R5) | Pending |
-| 2.26 | Admin-editable ancestor lineage: seed + 1840–1940 caption + full editor (R5) | Pending |
+| 2.24 | No-op guard (client + server) (R5) | Completed |
+| 2.25 | Admin edit-any-card from /admin.html (R5) | Completed |
+| 2.26 | Admin-editable ancestor lineage: seed + 1840–1940 caption + full editor (R5) | Completed |
+| 2.27 | R5/R6 feedback fixes (fast-path, 2026-06-09): identifiers + history year-gating + export caption + public editable deceased years + admin transliteration + preserve-blank + admin delete + lineage chips | Completed |
 
 > **Phases 2.8a + 2.20 (added 2026-06-07b):** Local mock-DB testing track. **2.8a**
 > adds an in-memory Postgres (`pg-mem`) behind `USE_MOCK_DB` + a `dev:mock` launcher,
@@ -3345,7 +3346,9 @@ with the moderation toggle.
 
 ### Phase 2.20: Local round-trip test on mock DB (manual E2E)
 
-**Status:** Pending
+**Status:** Cancelled (2026-06-09) — superseded by live verification on Railway; the
+architect confirmed the full feature set in production, so the local mock-DB E2E is
+no longer needed.
 **Reason:** (Added 2026-06-07b) End-of-cycle full manual verification of the whole
 Phase 2 feature set against the in-memory DB (`npm run dev:mock`) before pushing to
 Railway. Catches integration issues that unit tests with a mocked pool cannot.

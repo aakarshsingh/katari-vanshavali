@@ -19,6 +19,15 @@ function _showSpinner(container) {
   container.innerHTML = '<span class="chip-spinner" aria-label="Loading…">⋯</span>';
 }
 
+// Set a value programmatically AND notify listeners. The lineage editor keeps a
+// working array synced via the field's 'input' event, so a silent `.value =`
+// would be lost on save; dispatching a bubbling input event keeps it in sync
+// (harmless for forms that read the DOM directly at submit time).
+function _setValue(outputEl, val) {
+  outputEl.value = val;
+  outputEl.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 function _renderChips(container, options, outputEl) {
   if (!container) return;
   container.innerHTML = '';
@@ -28,15 +37,34 @@ function _renderChips(container, options, outputEl) {
     btn.className = 'chip';
     btn.textContent = opt;
     btn.addEventListener('click', function() {
-      outputEl.value = opt;
+      _setValue(outputEl, opt); // clicking a chip is an explicit, deliberate replace
     });
     container.appendChild(btn);
   });
 }
 
-function attachTransliterate(inputEl, outputEl) {
+// Apply suggestions WITHOUT clobbering a value the user already has: auto-fill
+// only when the output field is blank; otherwise just offer the suggestions as
+// chips (excluding the current value). This is the fix for auto-fill overwriting
+// a correct Hindi spelling while the English field is edited.
+function _applySuggestions(container, options, outputEl) {
+  const current = (outputEl.value || '').trim();
+  if (!current && options.length) _setValue(outputEl, options[0]); // fill only when blank
+  const after = (outputEl.value || '').trim();
+  const chips = after ? options.filter(function(o) { return o !== after; }) : options;
+  _renderChips(container, chips, outputEl);
+}
+
+// attachTransliterate(inputEl, outputEl, opts)
+//   opts.translit — function(text) -> Promise<{ options }>. Defaults to the
+//   global public `api.transliterate`, so the public sidebar keeps working with
+//   the two-arg call; the admin page passes its own (adminApi-based) fetcher.
+function attachTransliterate(inputEl, outputEl, opts) {
   if (!inputEl || !outputEl) return;
-  const container = _getChipContainer(inputEl);
+  const container = (opts && opts.container) || _getChipContainer(inputEl);
+  const translit = (opts && opts.translit)
+    || (window.api && window.api.transliterate)
+    || null;
   let debounceTimer = null;
 
   inputEl.addEventListener('keyup', function() {
@@ -47,25 +75,23 @@ function attachTransliterate(inputEl, outputEl) {
     // suggestions while the new ones are fetched.
     _clearChips(container);
     if (!text) return;
+    if (!translit) { _showMessage(container, 'Suggestions unavailable — type Hindi directly'); return; }
 
     debounceTimer = setTimeout(function() {
       if (_transCache.has(text)) {
-        const cached = _transCache.get(text);
-        if (cached.length) outputEl.value = cached[0];
-        _renderChips(container, cached, outputEl);
+        _applySuggestions(container, _transCache.get(text), outputEl);
         return;
       }
 
       _showSpinner(container);
-      api.transliterate(text).then(function(data) {
+      translit(text).then(function(data) {
         const options = (data && data.options) ? data.options : [];
         if (options.length === 0) {
           _showMessage(container, 'No suggestions — type Hindi directly');
         } else {
           _transCache.set(text, options);
-          // Auto-fill the best (first) option; show all as chips to replace.
-          outputEl.value = options[0];
-          _renderChips(container, options, outputEl);
+          // Preserve an existing Hindi value; only fill a blank one.
+          _applySuggestions(container, options, outputEl);
         }
       }).catch(function() {
         _showMessage(container, 'Suggestions unavailable — type Hindi directly');

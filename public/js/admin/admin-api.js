@@ -43,6 +43,10 @@ const adminApi = {
   updatePerson(id, payload) {
     return adminFetch('/api/persons/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
   },
+  // Direct admin delete (cascades the person's family links server-side).
+  deletePerson(id) {
+    return adminFetch('/api/persons/' + id, { method: 'DELETE' });
+  },
 
   // --- Ancestor lineage (the single-child chain above "Bade Lal Singh") ---
   // GET → current ordered ancestors + focal. PUT → replace the whole chain
@@ -50,6 +54,11 @@ const adminApi = {
   getLineage() { return adminFetch('/api/lineage'); },
   setLineage(ancestors) {
     return adminFetch('/api/lineage', { method: 'PUT', body: JSON.stringify({ ancestors }) });
+  },
+
+  // --- Transliteration (shared public route; admin is authenticated) ---
+  transliterate(text) {
+    return adminFetch('/api/transliterate', { method: 'POST', body: JSON.stringify({ text }) });
   },
 
   // --- Settings ---
