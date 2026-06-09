@@ -261,6 +261,7 @@ describe('changes routes', () => {
 
   test('POST /api/changes → 201 pending', async () => {
     pool.query
+      .mockResolvedValueOnce({ rows: [{ id: PID, name_en: 'Old' }] }) // current person (no-op diff)
       .mockResolvedValueOnce({ rows: [{ id: 't1' }] }) // tree id
       .mockResolvedValueOnce({ rows: [{ id: 'c1', status: 'pending' }] }); // recordPending
     const res = await request(app)
@@ -268,6 +269,17 @@ describe('changes routes', () => {
       .send({ op_type: 'update', entity: 'person', target_id: PID, payload: { name_en: 'New' }, client_token: 'tok' });
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ id: 'c1', status: 'pending' });
+  });
+
+  test('POST /api/changes → 200 noop when a person update matches the current record', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: PID, name_en: 'Same' }] }); // current person
+    const res = await request(app)
+      .post('/api/changes')
+      .send({ op_type: 'update', entity: 'person', target_id: PID, payload: { name_en: 'Same' }, client_token: 'tok' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'noop' });
+    // Only the current-person SELECT ran — no tree fetch, no recordPending insert.
+    expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
   test('POST /api/changes → 400 on invalid op_type', async () => {

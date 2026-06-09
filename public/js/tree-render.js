@@ -31,6 +31,8 @@ const _genIdx = (d) => Math.max(0, Math.min(GEN_FILL.length - 1, d));
 const BUS_DROP = 16;   // distance from parent bottom to the shared sibling bus
 // Max chars before truncating with ellipsis (ancestor strip only)
 const NAME_MAX = 22;
+// Era caption shown above the ancestor strip (the lineage's approximate span).
+const ANCESTOR_ERA_CAPTION = '1840 – 1940';
 
 function svgEl(tag, attrs) {
   const el = document.createElementNS(SVG_NS, tag);
@@ -274,6 +276,17 @@ function renderBorder(svg, w, h) {
 
 function renderAncestorStrip(svg, ancestorChain, personMap, lang, startX, startY, focalCenterX, focalTopY) {
   const group = svgEl('g', { class: 'ancestor-strip' });
+
+  // Era caption centred above the strip (styled via .ancestor-era in main.css).
+  const stripW = ancestorChain.length * STRIP_BOX_W
+    + Math.max(0, ancestorChain.length - 1) * STRIP_H_GAP;
+  const caption = svgEl('text', {
+    class: 'ancestor-era',
+    x: startX + stripW / 2, y: startY - 7,
+    'text-anchor': 'middle', 'dominant-baseline': 'middle',
+  });
+  caption.textContent = ANCESTOR_ERA_CAPTION;
+  group.appendChild(caption);
 
   for (let i = 0; i < ancestorChain.length; i++) {
     const person = personMap[ancestorChain[i]];

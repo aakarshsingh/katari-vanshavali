@@ -40,6 +40,25 @@ function personPayload(req, { withParent }) {
   return payload;
 }
 
+// No-op guard (Phase 2.24): return only the payload keys whose value actually
+// differs from the current record. '' is normalised to null (matches
+// coercePersonValue's write behaviour) and values compare as strings so a DB
+// integer (1950) equals form text ("1950"). An empty result means "nothing
+// changed" — the caller skips the UPDATE, the queue insert, and the history row.
+function changedKeys(current, payload) {
+  const norm = (v) => (v === '' || v === null || v === undefined ? null : v);
+  const out = {};
+  for (const k of Object.keys(payload)) {
+    let incoming = payload[k];
+    if (k === 'name_en' && typeof incoming === 'string') incoming = incoming.trim();
+    const a = norm(incoming);
+    const b = norm(current[k]);
+    if (a === null && b === null) continue;
+    if (a === null || b === null || String(a) !== String(b)) out[k] = payload[k];
+  }
+  return out;
+}
+
 router.post(
   '/',
   requireName,
@@ -99,18 +118,27 @@ router.patch(
     if (Object.keys(payload).length === 0) return res.status(400).json({ error: 'No fields to update' });
     try {
       const { moderation, yearOpts } = await treeFlags();
+      // No-op guard: fetch the current record and drop unchanged keys. An empty
+      // diff is returned unchanged with no queue insert, UPDATE, or history row.
+      const cur = await pool.query('SELECT * FROM person WHERE id = $1', [id]);
+      const current = cur.rows[0];
+      if (!current) return res.status(404).json({ error: 'Person not found' });
+      const changed = changedKeys(current, payload);
+      if (Object.keys(changed).length === 0) {
+        return res.json(serializePerson(current, { isAdmin: !!req.admin, ...yearOpts }));
+      }
       if (moderation && !req.admin) {
         const cr = await recordPending(null, {
-          op_type: 'update', entity: 'person', target_id: id, payload,
+          op_type: 'update', entity: 'person', target_id: id, payload: changed,
           client_token: req.body.client_token, submitter_note: req.body.submitter_note,
         });
         return res.status(202).json({ status: 'pending', id: cr.id });
       }
       const result = await withTransaction(async (client) => {
-        const r = await applyChange(client, { op_type: 'update', entity: 'person', target_id: id, payload });
+        const r = await applyChange(client, { op_type: 'update', entity: 'person', target_id: id, payload: changed });
         await recordApplied(client, {
           tree_id: r.after.tree_id, op_type: 'update', entity: 'person', target_id: id,
-          payload, before_snapshot: r.before, after_snapshot: r.after,
+          payload: changed, before_snapshot: r.before, after_snapshot: r.after,
           resolved_by: req.admin ? req.admin.id : null,
         });
         return r;

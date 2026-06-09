@@ -36,6 +36,22 @@ const adminApi = {
   // --- Tree (admin → full rows; used to source `before` for pending-edit diffs) ---
   getTree() { return adminFetch('/api/tree'); },
 
+  // --- People (admin direct edit; the list reuses the admin tree GET) ---
+  listPersons() { return adminFetch('/api/tree').then((t) => (t && t.persons) || []); },
+  // Direct admin edit. The server no-op guard (Phase 2.24) drops unchanged keys,
+  // so passing only the diff means no UPDATE / history row when nothing changed.
+  updatePerson(id, payload) {
+    return adminFetch('/api/persons/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
+  },
+
+  // --- Ancestor lineage (the single-child chain above "Bade Lal Singh") ---
+  // GET → current ordered ancestors + focal. PUT → replace the whole chain
+  // atomically (server reconciles insert/remove/reorder/edit in one transaction).
+  getLineage() { return adminFetch('/api/lineage'); },
+  setLineage(ancestors) {
+    return adminFetch('/api/lineage', { method: 'PUT', body: JSON.stringify({ ancestors }) });
+  },
+
   // --- Settings ---
   getSettings() { return adminFetch('/api/settings'); },
   setModeration(enabled) {

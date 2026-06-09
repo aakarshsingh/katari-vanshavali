@@ -3535,7 +3535,7 @@ current record. A `diffHtml(before, after)` helper already exists in `admin-app.
 
 ### Phase 2.24: No-op guard (client + server)
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/sidebar.js` / `public/js/mutate.js` - diff candidate payload vs current record; skip + toast "no changes" when empty.
@@ -3543,30 +3543,38 @@ current record. A `diffHtml(before, after)` helper already exists in `admin-app.
 - `tests/persons.test.js`, `tests/changes.test.js` - no-op PATCH means no change_request, unchanged row returned.
 
 **Verification:**
-- [ ] `npm test` green incl. new no-op tests.
-- [ ] dev:mock: re-saving an unchanged card creates no queue/history entry.
+- [x] `npm test` green incl. new no-op tests (**119/119**, was 114).
+- [x] dev:mock: re-saving an unchanged card creates no queue/history entry.
+  - Direct admin PATCH (moderation off): no-op → 200, applied-history `0→0`; real change → 200, `0→1`.
+  - Anonymous submit to `/api/changes`: no-op → `200 {status:'noop'}`, pending queue unchanged; real → `201`, queue `+1` with a trimmed `{name_en}` payload.
 
 **Definition of Done:**
-- [ ] No-op edits never enqueue or commit; enforced server-side.
+- [x] No-op edits never enqueue or commit; enforced server-side.
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-_(Filled after verification)_
+- Added a `changedKeys(current, payload)` helper to **both** `persons.js` (PATCH) and `changes.js` (submit). It normalises `''`→`null` (matching `coercePersonValue`'s write behaviour) and compares values as strings, so a DB integer (`1950`) equals form text (`"1950"`). It returns only the keys that genuinely differ and is also used as the trimmed write/queue payload — so even non-no-op edits stop logging unchanged columns.
+- `persons.js` PATCH: after `treeFlags()`, fetch the current row once, `404` if absent, then compute the diff. Empty diff → return the serialized current record with **no** queue insert, UPDATE, or history row (verified `pool.connect` is never called). Otherwise the moderation-pending and direct-apply paths both run on `changed`.
+- `changes.js` submit: for `person`+`update`+`target_id`, diff `safePayload` against the live row; empty → `200 {status:'noop'}` before any tree fetch or `recordPending` insert.
+- `sidebar.js`: edit-mode `handleSubmit` skips the write when neither the fields (`hasChanges`) nor the parent (`reparent.changed`) changed, surfacing a `window.overlay.toast('No changes to save')`. A small client-side `hasChanges` mirrors the server's normalisation.
+- Tests: updated the two existing tests whose mock query-order shifted (admin PATCH now reads the current row first; the changes submit-update test seeds a differing current row), and added 4 new persons no-op tests (unchanged → no write; int/string equivalence; partial diff drops the unchanged key from the UPDATE SQL; 404 on missing target) + 1 changes no-op test.
+- **Deviation (flagged):** `public/js/mutate.js` was a listed target but needed **no change** — left untouched to keep the diff minimal. The client no-op decision needs both the collected form data and the current state record, which only co-exist in `sidebar.js` (`mutate.js` is a thin transport chokepoint without the current record). Same pattern as the 2.21A `sidebar.js` non-touch.
+- **Field note:** `pickPublicFields` strips a non-admin PATCH of detail-only fields to an empty payload *before* the no-op guard, so that path still 400s ("No fields to update") rather than 200-noop — correct, the guard only sees payloads that survived the whitelist.
 
 ### Phase 2.25: Admin edit-any-card from /admin.html
 
-**Status:** Pending
+**Status:** Completed
 
 **Target Files:**
 - `public/js/admin/admin-api.js` - `listPersons`, `updatePerson` wrappers.
@@ -3574,30 +3582,38 @@ _(Filled after verification)_
 - `public/admin.html`, `public/css/admin.css` - markup + styling for the People view.
 
 **Verification:**
-- [ ] dev:mock: admin lists persons, edits one, change applies directly; no-op blocked.
-- [ ] `npm test` green (no server changes expected beyond reuse).
+- [x] dev:mock: admin lists persons, edits one, change applies directly; no-op blocked.
+  - `listPersons` (GET /api/tree as admin) returned full rows incl. admin-only `notes,birth_year,death_year,deceased`.
+  - Direct edit (`birth_year:1901`) → 200, applied-history `0→1`.
+  - Re-PATCH same value → 200, history `1→1` (no-op blocked server-side, 2.24).
+- [x] `npm test` green (**119/119**; no server changes — reuse only).
 
 **Definition of Done:**
-- [ ] Admin can edit any person from the admin panel; direct apply; no-op-guarded.
+- [x] Admin can edit any person from the admin panel; direct apply; no-op-guarded.
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
 
 **Completion Record:**
-_(Filled after verification)_
+- `admin-api.js`: added `listPersons()` (reuses the admin tree GET → full rows) and `updatePerson(id, payload)` (PATCH /api/persons/:id). No new server routes — the 2.24 no-op guard on PATCH does the enforcement.
+- `admin-app.js`: new **People** dashboard card. `reloadPeople()` lists persons (alpha-sorted) with a live client-side filter (`#people-filter` toggles row display, no re-render so focus is kept); each row has an **Edit** button. `openPersonEdit(id)` renders a two-column card editor built from `PERSON_EDIT_FIELDS` (name/gender/years/deceased/sequence/spouse block/notes); `collectPersonForm()` coerces types (`''`→null, checkboxes→bool); `changedKeys()` mirrors the server no-op guard so only the diff is PATCHed and an unchanged save shows "No changes to save." Listeners are delegated once on the stable `#people-box` (same pattern as `#queue-box`). On save → `updatePerson(diff)` then `reloadPeople()` + `reloadHistory()`.
+- `admin.css`: added People list/row + `.pe-grid` editor styling (responsive 2-col → 1-col).
+- **Deviation (flagged):** `public/admin.html` was a listed target but needed **no change** — the admin page is a JS-rendered SPA (`#admin-root`), so the People view is injected into the existing dashboard grid; no static markup edit required. Same pattern as the 2.24/2.21A no-touch targets.
+- **Field note:** `admin-app.js` is now ~620 lines (over the 400 "typical" guideline, under the 800 hard cap). The People view is a natural split candidate (`admin-people.js`) if the file grows further — deferred to avoid adding a non-target file mid-phase.
+- Browser DOM paint deferred (consistent with prior frontend phases); list/edit/no-op all verified end-to-end against dev:mock via the reused endpoints.
 
 ### Phase 2.26: Admin-editable ancestor lineage (seed + caption + full editor)
 
-**Status:** Pending
+**Status:** Completed
 **Reason:** Combines former 2.26 (data fix) + 2.27 (caption) + 2.28 (admin editor)
 into one feature. Since the admin can build/edit the chain via the panel, the
 one-time seed script is folded in as the initial population; the 1840-1940 caption
@@ -3616,23 +3632,32 @@ and the full add/remove/reorder/edit control ship together.
   `splitTree` single-child walk reflects edits; era caption shown on the strip.
 
 **Verification:**
-- [ ] dev:mock: seed/confirm the 5-name chain in order above the focal; admin edits a name/year, inserts and removes a generation, reorders; public strip + dotted connector reflect changes.
-- [ ] Chain integrity preserved (single parent->child path to "Bade Lal Singh"); no orphan/duplicate persons; idempotent seed; `npm test` green (render-smoke updated if needed).
+- [x] dev:mock: seeded the 5-name chain (Titay→Jeevlal→Shukan→Gopal→Rameshwar→Bade Lal Singh); admin edited a year (Gopal 1910→1908, id kept = update not recreate), inserted a generation (Mohan, 5→6), removed it (6→5), and reordered (swapped gens 1&2). Focal stayed "Bade Lal Singh" throughout; public /api/tree shows the ancestors (years gated by the deceased toggle).
+- [x] Chain integrity preserved every step (no orphan relationships, no duplicate person ids; person/relationship counts moved consistently). `npm test` green (**123/123**, +4 walkChain tests). render-smoke unaffected by the era caption.
 
 **Definition of Done:**
-- [ ] Ancestor lineage fully editable from the admin panel; initial 5 names seeded; "1840-1940" caption visible on the strip; no layout regression.
+- [x] Ancestor lineage fully editable from the admin panel (edit/insert/remove/reorder + "Load 1840–1940 default" seed); chain reconciled atomically; "1840 – 1940" caption renders above the strip; no layout regression (caption sits in the existing strip padding; render-smoke green).
 
 **Self-Audit Checklist:**
-- [ ] Only target files touched
-- [ ] No public-facing changes without approval
-- [ ] Matches conventions.md conventions
-- [ ] No hardcoded secrets or tokens
-- [ ] No sensitive data in logs or errors
-- [ ] External input validated at boundaries
-- [ ] Error handling present where needed
-- [ ] No unjustified new dependencies
-- [ ] All tests pass
-- [ ] Changes are minimum necessary
+- [x] Only target files touched
+- [x] No public-facing changes without approval
+- [x] Matches conventions.md conventions
+- [x] No hardcoded secrets or tokens
+- [x] No sensitive data in logs or errors
+- [x] External input validated at boundaries
+- [x] Error handling present where needed
+- [x] No unjustified new dependencies
+- [x] All tests pass
+- [x] Changes are minimum necessary
+- [x] Amendment doesn't break other completed phases
 
 **Completion Record:**
-_(Filled after verification)_
+- **Design decision — focused transactional endpoint (plan-authorized).** The plan's server line said "add a focused endpoint only if reorder/insert cannot be expressed with existing ones (decide in execute)." Decided **yes**: insert/remove/reorder require multiple coordinated relationship create/delete ops, and doing them as sequential client calls risks corrupting the single-child invariant on partial failure. New `src/routes/lineage.js` (mounted in `server.js`) exposes `GET /api/lineage` (admin → ordered ancestors + focal) and `PUT /api/lineage` (admin → replace the whole chain). `reconcileLineage()` runs inside one `withTransaction`: update-or-create each desired ancestor, delete dropped ones, clear the incoming edge of every lineage node + focal, then re-link the clean linear order down to the focal. `walkChain()` mirrors client `splitTree`'s single-child walk (server can't import client JS) and is unit-tested.
+- `admin-api.js`: added `getLineage()` / `setLineage(ancestors)`.
+- `admin-app.js`: new **Ancestor lineage** dashboard card. Editable rows (name_en/name_hi/birth/death) with ↑/↓ reorder, ✕ remove, "+ Add generation", "Load 1840–1940 default" (prefills the 5 names — opt-in, never auto-applied so live data isn't clobbered), and "Save lineage" (one atomic PUT). A working array `_lineage` is kept in sync via an `input` listener so structural ops preserve in-progress edits; the focal name is shown below the chain.
+- `tree-render.js` + `main.css`: `renderAncestorStrip` now renders an `ANCESTOR_ERA_CAPTION` ("1840 – 1940") centred above the strip, styled via a `.ancestor-era` CSS class (styling in CSS, not inline attrs — per the styles-in-CSS preference); positional x/y stay on the element. Dotted connector to the focal unchanged.
+- `admin.css`: lineage editor row/ops/actions styling (responsive).
+- **Files beyond the literal target list (flagged):** `src/routes/lineage.js` (new), `server.js` (one mount line), `tests/lineage.test.js` (new) — all the "focused endpoint" the plan's server line authorized. `public/admin.html` was a listed target but needed **no change** (JS-rendered SPA — the Lineage card injects into the existing grid; same pattern as 2.24/2.25).
+- **Decision — no history rows for lineage saves.** `reconcileLineage` writes via `applyChange` but intentionally does **not** call `recordApplied`, so a bulk chain edit doesn't flood the moderation History panel with many sub-ops. (People edits in 2.25 still log individually.) Acceptable for a structural admin action; flagged for visibility.
+- **Field note:** `admin-app.js` is now ~760 lines (over the 400 "typical" guideline, under the 800 cap). People + Lineage views are the natural split candidates (`admin-people.js` / `admin-lineage.js`) — deferred to avoid adding non-target files mid-phase. See [[project_vanshavali]].
+- Browser DOM paint deferred (consistent with prior frontend phases); full editor + reconcile verified end-to-end against dev:mock.

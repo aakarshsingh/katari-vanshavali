@@ -134,6 +134,21 @@ function collectForm(els) {
   return data;
 }
 
+// Client no-op guard (Phase 2.24): true if any field in `data` differs from the
+// current record. Mirrors the server — '' is treated as null and values compare
+// as strings so 1950 (number) equals "1950" (text).
+function hasChanges(current, data) {
+  const norm = (v) => (v === '' || v === null || v === undefined ? null : v);
+  return Object.keys(data).some((k) => {
+    let incoming = data[k];
+    if (k === 'name_en' && typeof incoming === 'string') incoming = incoming.trim();
+    const a = norm(incoming);
+    const b = norm(current[k]);
+    if (a === null && b === null) return false;
+    return a === null || b === null || String(a) !== String(b);
+  });
+}
+
 function populateForm(els, person) {
   els.nameEn.value = person.name_en || '';
   els.nameHi.value = person.name_hi || '';
@@ -289,6 +304,13 @@ async function handleSubmit(e) {
         changed: selectedParentNow !== (sidebarOrigParentId || null),
         to: selectedParentNow,
       };
+      // No-op guard: nothing changed (fields and parent) → skip the write.
+      const current = window.__state.persons.find((p) => p.id === sidebarPersonId);
+      if (current && !reparent.changed && !hasChanges(current, data)) {
+        if (window.overlay && window.overlay.toast) window.overlay.toast('No changes to save');
+        closeSidebar();
+        return;
+      }
       const result = await mutate.updatePerson(sidebarPersonId, data, reparent);
       if (!result.pending) {
         setState({ persons: result.persons, relationships: result.relationships });

@@ -9,6 +9,7 @@ const changesRouter = require('./src/routes/changes');
 const treeRouter = require('./src/routes/tree');
 const personsRouter = require('./src/routes/persons');
 const relationshipsRouter = require('./src/routes/relationships');
+const lineageRouter = require('./src/routes/lineage');
 const transliterateRouter = require('./src/routes/transliterate');
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/changes', changesRouter);
 app.use('/api/tree', treeRouter);
 app.use('/api/persons', personsRouter);
 app.use('/api/relationships', relationshipsRouter);
+app.use('/api/lineage', lineageRouter);
 app.use('/api/transliterate', transliterateRouter);
 
 async function start() {

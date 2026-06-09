@@ -114,7 +114,9 @@ describe('PATCH /api/persons/:id whitelist + hide flags', () => {
   });
 
   it('admin PATCH can set death_year_hidden', async () => {
-    pool.query.mockResolvedValueOnce(FLAGS_OFF);
+    pool.query
+      .mockResolvedValueOnce(FLAGS_OFF) // treeFlags
+      .mockResolvedValueOnce({ rows: [FULL_PERSON] }); // SELECT current (no-op guard)
     pool.__client.query
       .mockResolvedValueOnce({}) // BEGIN
       .mockResolvedValueOnce({ rows: [FULL_PERSON] }) // SELECT before
@@ -137,5 +139,65 @@ describe('PATCH /api/persons/:id whitelist + hide flags', () => {
       .set('Cookie', ADMIN_COOKIE)
       .send({ death_year_hidden: 'yes' });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('PATCH /api/persons/:id no-op guard (Phase 2.24)', () => {
+  it('unchanged fields → 200 with no UPDATE, no queue, no history', async () => {
+    pool.query
+      .mockResolvedValueOnce(FLAGS_OFF) // treeFlags
+      .mockResolvedValueOnce({ rows: [FULL_PERSON] }); // SELECT current
+    const res = await request(app)
+      .patch(`/api/persons/${PERSON_ID}`)
+      .set('Cookie', ADMIN_COOKIE)
+      .send({ name_en: 'Ram', death_year_hidden: false }); // both equal current
+    expect(res.status).toBe(200);
+    expect(res.body.name_en).toBe('Ram');
+    // No transaction → no UPDATE and no recordApplied history row.
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  it('an integer that equals the stored value (1950 vs "1950") is not a change', async () => {
+    pool.query
+      .mockResolvedValueOnce(FLAGS_OFF)
+      .mockResolvedValueOnce({ rows: [FULL_PERSON] }); // birth_year: 1950
+    const res = await request(app)
+      .patch(`/api/persons/${PERSON_ID}`)
+      .set('Cookie', ADMIN_COOKIE)
+      .send({ birth_year: '1950' }); // string form of the same year
+    expect(res.status).toBe(200);
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  it('only the genuinely changed key is written when some fields match', async () => {
+    pool.query
+      .mockResolvedValueOnce(FLAGS_OFF)
+      .mockResolvedValueOnce({ rows: [FULL_PERSON] });
+    pool.__client.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({ rows: [FULL_PERSON] }) // SELECT before
+      .mockResolvedValueOnce({ rows: [{ ...FULL_PERSON, name_en: 'Raman' }] }) // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 'cr1' }] }) // recordApplied
+      .mockResolvedValueOnce({}); // COMMIT
+    const res = await request(app)
+      .patch(`/api/persons/${PERSON_ID}`)
+      .set('Cookie', ADMIN_COOKIE)
+      .send({ name_en: 'Raman', birth_year: 1950 }); // name changed, year unchanged
+    expect(res.status).toBe(200);
+    const updateSql = pool.__client.query.mock.calls[2][0];
+    expect(updateSql).toContain('name_en');
+    expect(updateSql).not.toContain('birth_year'); // unchanged key dropped from the UPDATE
+  });
+
+  it('404 when the target person does not exist', async () => {
+    pool.query
+      .mockResolvedValueOnce(FLAGS_OFF)
+      .mockResolvedValueOnce({ rows: [] }); // SELECT current → none
+    const res = await request(app)
+      .patch(`/api/persons/${PERSON_ID}`)
+      .set('Cookie', ADMIN_COOKIE)
+      .send({ name_en: 'Whoever' });
+    expect(res.status).toBe(404);
+    expect(pool.connect).not.toHaveBeenCalled();
   });
 });

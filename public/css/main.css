@@ -181,6 +181,16 @@ main {
   font-style: italic;
 }
 
+/* Era caption above the ancestor strip (set as a class so styling lives in CSS,
+   not inline attributes — positional x/y stay on the element). */
+.ancestor-era {
+  font-family: Georgia, serif;
+  font-size: 0.72rem;
+  fill: var(--ink-faint);
+  font-style: italic;
+  letter-spacing: 0.08em;
+}
+
 /* ── SVG node styles ──
    Fills, strokes, and text colours are set as presentation attributes by
    tree-render.js — per box, since a couple has two independently-gendered

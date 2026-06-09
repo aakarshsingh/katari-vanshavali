@@ -205,6 +205,8 @@ async function renderDashboard() {
     '<div class="admin-grid">' +
       '<section class="admin-card"><h2>Settings</h2><div id="moderation-box">Loading…</div></section>' +
       '<section class="admin-card"><h2>Add admin</h2><div id="add-admin-box"></div></section>' +
+      '<section class="admin-card admin-wide"><h2>People <span id="people-count" class="count"></span></h2><div id="people-box">Loading…</div></section>' +
+      '<section class="admin-card admin-wide"><h2>Ancestor lineage <span class="count">1840–1940</span></h2><div id="lineage-box">Loading…</div></section>' +
       '<section class="admin-card admin-wide"><h2>Pending edits <span id="queue-count" class="count"></span></h2><div id="queue-box">Loading…</div></section>' +
       '<section class="admin-card admin-wide"><h2>History</h2><div id="history-box">Loading…</div></section>' +
     '</div>';
@@ -214,12 +216,16 @@ async function renderDashboard() {
     boot();
   });
 
-  // Delegated once — #queue-box innerHTML is replaced on every reload, but the
-  // element itself is stable, so the listener must not be re-attached per reload.
+  // Delegated once — these box innerHTMLs are replaced on every reload, but the
+  // elements themselves are stable, so listeners must not be re-attached per reload.
   wireQueueActions(document.getElementById('queue-box'));
+  wirePeopleActions(document.getElementById('people-box'));
+  wireLineageActions(document.getElementById('lineage-box'));
 
   renderModeration();
   renderAddAdmin();
+  reloadPeople();
+  reloadLineage();
   reloadQueue();
   reloadHistory();
 }
@@ -428,6 +434,328 @@ function wireRevertActions(box) {
       }
     });
   });
+}
+
+// --- People (admin edit-any-card) ---
+
+// Editable fields for the admin person editor (ordered as shown in the form).
+// Mirrors the public sidebar's admin tier; the per-card hide flags are omitted
+// because R5 drives year visibility off the life-status toggles, not per-card.
+const PERSON_EDIT_FIELDS = [
+  { k: 'name_en', type: 'text' },
+  { k: 'name_hi', type: 'text' },
+  { k: 'gender', type: 'select', opts: ['M', 'F', 'other'] },
+  { k: 'birth_year', type: 'number' },
+  { k: 'death_year', type: 'number' },
+  { k: 'deceased', type: 'checkbox' },
+  { k: 'sequence', type: 'number' },
+  { k: 'spouse_en', type: 'text' },
+  { k: 'spouse_hi', type: 'text' },
+  { k: 'spouse_gender', type: 'select', opts: ['', 'M', 'F', 'other'] },
+  { k: 'spouse_birth_year', type: 'number' },
+  { k: 'spouse_death_year', type: 'number' },
+  { k: 'spouse_deceased', type: 'checkbox' },
+  { k: 'notes', type: 'textarea' },
+];
+
+let _people = []; // cache of the last-loaded rows; edit reads `before` from here.
+
+function personYears(p) {
+  const b = p.birth_year != null && p.birth_year !== '' ? p.birth_year : null;
+  const d = p.death_year != null && p.death_year !== '' ? p.death_year : null;
+  if (b && d) return b + '–' + d;
+  if (b) return 'b. ' + b;
+  if (d) return 'd. ' + d;
+  return '';
+}
+
+async function reloadPeople() {
+  const box = document.getElementById('people-box');
+  const countEl = document.getElementById('people-count');
+  try { _people = await adminApi.listPersons(); }
+  catch (err) { box.innerHTML = `<div class="form-error">${esc(err.message)}</div>`; return; }
+  if (countEl) countEl.textContent = _people.length ? `(${_people.length})` : '';
+  box.innerHTML = peopleListHtml(_people);
+}
+
+function peopleListHtml(persons) {
+  if (!persons.length) return '<p class="muted">No people yet.</p>';
+  const sorted = persons.slice().sort((a, b) => personName(a).localeCompare(personName(b)));
+  const rows = sorted.map((p) => {
+    const years = personYears(p);
+    const search = ((p.name_en || '') + ' ' + (p.name_hi || '')).toLowerCase();
+    return '<div class="people-row" data-search="' + esc(search) + '">' +
+      '<div class="people-row-main"><span class="people-name">' + esc(personName(p)) + '</span>' +
+      (years ? ' <span class="muted">' + esc(years) + '</span>' : '') + '</div>' +
+      '<button class="btn btn-ghost" data-edit="' + esc(p.id) + '">Edit</button>' +
+    '</div>';
+  }).join('');
+  return '<input type="text" id="people-filter" placeholder="Filter by name…" autocomplete="off" />' +
+    '<div class="people-list">' + rows + '</div>';
+}
+
+function personFieldHtml(person, field) {
+  const { k, type, opts } = field;
+  const label = FIELD_LABELS[k] || k;
+  const id = 'pe-' + k;
+  let control;
+  if (type === 'checkbox') {
+    control = `<input type="checkbox" id="${id}"${person[k] === true ? ' checked' : ''} />`;
+    return `<label class="switch"><span>${esc(label)}</span>${control}</label>`;
+  }
+  if (type === 'select') {
+    control = `<select id="${id}">` + opts.map((o) =>
+      `<option value="${esc(o)}"${(person[k] || '') === o ? ' selected' : ''}>${esc(o || '—')}</option>`).join('') + '</select>';
+  } else if (type === 'textarea') {
+    control = `<textarea id="${id}" rows="3">${esc(person[k] == null ? '' : person[k])}</textarea>`;
+  } else {
+    const t = type === 'number' ? 'number' : 'text';
+    const v = person[k] == null ? '' : person[k];
+    control = `<input type="${t}" id="${id}" value="${esc(v)}" />`;
+  }
+  return `<label>${esc(label)}${control}</label>`;
+}
+
+function openPersonEdit(id) {
+  const box = document.getElementById('people-box');
+  const person = _people.find((p) => p.id === id);
+  if (!person) { reloadPeople(); return; }
+  const fields = PERSON_EDIT_FIELDS.map((f) => personFieldHtml(person, f)).join('');
+  box.innerHTML =
+    '<form id="people-edit-form" data-id="' + esc(id) + '" novalidate>' +
+      '<div class="pe-head"><button type="button" class="btn btn-ghost" data-back>← Back</button>' +
+      '<span class="pe-title">' + esc(personName(person)) + '</span></div>' +
+      '<div class="pe-grid">' + fields + '</div>' +
+      '<button type="submit" class="btn">Save changes</button>' +
+      '<div class="form-error" id="pe-error" hidden></div>' +
+      '<div class="form-ok" id="pe-ok" hidden></div>' +
+    '</form>';
+}
+
+// Read the edit form into a payload with the right types (mirrors the public
+// sidebar's coercion: '' → null for years/text, checkboxes → boolean).
+function collectPersonForm() {
+  const data = {};
+  for (const { k, type } of PERSON_EDIT_FIELDS) {
+    const el = document.getElementById('pe-' + k);
+    if (!el) continue;
+    if (type === 'checkbox') { data[k] = el.checked; continue; }
+    if (type === 'number') { data[k] = el.value === '' ? null : parseInt(el.value, 10); continue; }
+    const v = (el.value || '').trim();
+    data[k] = v === '' ? null : v;
+  }
+  return data;
+}
+
+// Client no-op guard mirror (the server enforces it too — Phase 2.24). Returns
+// only the keys whose value differs from the current record; '' ≈ null and
+// values compare as strings so 1950 (number) equals "1950" (text).
+function changedKeys(before, payload) {
+  const norm = (v) => (v === '' || v === null || v === undefined ? null : v);
+  const out = {};
+  for (const k of Object.keys(payload)) {
+    let incoming = payload[k];
+    if (k === 'name_en' && typeof incoming === 'string') incoming = incoming.trim();
+    const a = norm(incoming);
+    const b = norm(before[k]);
+    if (a === null && b === null) continue;
+    if (a === null || b === null || String(a) !== String(b)) out[k] = payload[k];
+  }
+  return out;
+}
+
+function wirePeopleActions(box) {
+  box.addEventListener('input', (e) => {
+    if (e.target.id !== 'people-filter') return;
+    const q = e.target.value.trim().toLowerCase();
+    box.querySelectorAll('.people-row').forEach((row) => {
+      const hay = row.getAttribute('data-search') || '';
+      row.style.display = (!q || hay.includes(q)) ? '' : 'none';
+    });
+  });
+
+  box.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('button[data-edit]');
+    if (editBtn) { openPersonEdit(editBtn.getAttribute('data-edit')); return; }
+    if (e.target.closest('button[data-back]')) { reloadPeople(); }
+  });
+
+  box.addEventListener('submit', async (e) => {
+    const form = e.target.closest('#people-edit-form');
+    if (!form) return;
+    e.preventDefault();
+    const id = form.getAttribute('data-id');
+    const errEl = document.getElementById('pe-error');
+    const okEl = document.getElementById('pe-ok');
+    errEl.hidden = true; okEl.hidden = true;
+
+    const before = _people.find((p) => p.id === id) || {};
+    const data = collectPersonForm();
+    if (!data.name_en) { errEl.textContent = 'Name (English) is required.'; errEl.hidden = false; return; }
+
+    const diff = changedKeys(before, data);
+    if (Object.keys(diff).length === 0) { okEl.textContent = 'No changes to save.'; okEl.hidden = false; return; }
+
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    try {
+      await adminApi.updatePerson(id, diff);
+      await reloadPeople();
+      await reloadHistory();
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+      btn.disabled = false;
+    }
+  });
+}
+
+// --- Ancestor lineage (admin-editable chain above "Bade Lal Singh") ---
+
+// Suggested initial chain (era 1840–1940). Loaded on demand via the UI button;
+// never auto-applied, so live family data is never clobbered without an explicit
+// Save. Years are spread across the era and remain editable per generation.
+const DEFAULT_LINEAGE = [
+  { name_en: 'Titay Singh', name_hi: '', birth_year: 1840, death_year: null, deceased: true },
+  { name_en: 'Jeevlal Singh', name_hi: '', birth_year: 1865, death_year: null, deceased: true },
+  { name_en: 'Shukan Singh', name_hi: '', birth_year: 1890, death_year: null, deceased: true },
+  { name_en: 'Gopal Singh', name_hi: '', birth_year: 1910, death_year: null, deceased: true },
+  { name_en: 'Rameshwar Singh', name_hi: '', birth_year: 1930, death_year: 1940, deceased: true },
+];
+
+let _lineage = [];      // working copy of the editable chain (root → youngest)
+let _lineageFocal = null;
+
+function toLineageRow(p) {
+  return {
+    id: p.id,
+    name_en: p.name_en || '',
+    name_hi: p.name_hi || '',
+    birth_year: p.birth_year != null ? p.birth_year : '',
+    death_year: p.death_year != null ? p.death_year : '',
+    deceased: p.deceased !== false,
+  };
+}
+
+async function reloadLineage() {
+  const box = document.getElementById('lineage-box');
+  try {
+    const data = await adminApi.getLineage();
+    _lineage = (data.ancestors || []).map(toLineageRow);
+    _lineageFocal = data.focal || null;
+  } catch (err) {
+    box.innerHTML = `<div class="form-error">${esc(err.message)}</div>`;
+    return;
+  }
+  renderLineageEditor();
+}
+
+function renderLineageEditor() {
+  const box = document.getElementById('lineage-box');
+  const rows = _lineage.map((a, i) => {
+    const upDis = i === 0 ? ' disabled' : '';
+    const downDis = i === _lineage.length - 1 ? ' disabled' : '';
+    return '<div class="lin-row" data-idx="' + i + '">' +
+      '<span class="lin-gen">' + (i + 1) + '</span>' +
+      '<input type="text" data-field="name_en" placeholder="Name (English)" value="' + esc(a.name_en) + '" />' +
+      '<input type="text" data-field="name_hi" placeholder="नाम" value="' + esc(a.name_hi) + '" />' +
+      '<input type="number" class="lin-year" data-field="birth_year" placeholder="Birth" value="' + esc(a.birth_year) + '" />' +
+      '<input type="number" class="lin-year" data-field="death_year" placeholder="Death" value="' + esc(a.death_year) + '" />' +
+      '<span class="lin-ops">' +
+        '<button type="button" class="btn btn-ghost lin-mini" data-act="up"' + upDis + '>↑</button>' +
+        '<button type="button" class="btn btn-ghost lin-mini" data-act="down"' + downDis + '>↓</button>' +
+        '<button type="button" class="btn btn-danger lin-mini" data-act="remove">✕</button>' +
+      '</span>' +
+    '</div>';
+  }).join('');
+
+  const focalName = _lineageFocal ? personName(_lineageFocal) : '(focal not found)';
+  box.innerHTML =
+    '<p class="muted">Oldest first. The chain links top→down into the focal person.</p>' +
+    '<div class="lin-list">' + (rows || '<p class="muted">No ancestors yet.</p>') + '</div>' +
+    '<div class="lin-focal">↓ <strong>' + esc(focalName) + '</strong> <span class="muted">(focal — descendants below)</span></div>' +
+    '<div class="lin-actions">' +
+      '<button type="button" class="btn btn-ghost" data-act="add">+ Add generation</button>' +
+      '<button type="button" class="btn btn-ghost" data-act="seed">Load 1840–1940 default</button>' +
+      '<button type="button" class="btn" data-act="save">Save lineage</button>' +
+    '</div>' +
+    '<div class="form-error" id="lin-error" hidden></div>' +
+    '<div class="form-ok" id="lin-ok" hidden></div>';
+}
+
+function wireLineageActions(box) {
+  // Keep the working array synced as the admin types, so structural ops
+  // (reorder/add/remove) preserve in-progress edits across re-renders.
+  box.addEventListener('input', (e) => {
+    const row = e.target.closest('.lin-row');
+    if (!row || !e.target.dataset.field) return;
+    const idx = parseInt(row.getAttribute('data-idx'), 10);
+    if (_lineage[idx]) _lineage[idx][e.target.dataset.field] = e.target.value;
+  });
+
+  box.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-act');
+    const row = btn.closest('.lin-row');
+    const idx = row ? parseInt(row.getAttribute('data-idx'), 10) : -1;
+
+    if (act === 'up' && idx > 0) {
+      [_lineage[idx - 1], _lineage[idx]] = [_lineage[idx], _lineage[idx - 1]];
+      return renderLineageEditor();
+    }
+    if (act === 'down' && idx < _lineage.length - 1) {
+      [_lineage[idx + 1], _lineage[idx]] = [_lineage[idx], _lineage[idx + 1]];
+      return renderLineageEditor();
+    }
+    if (act === 'remove') { _lineage.splice(idx, 1); return renderLineageEditor(); }
+    if (act === 'add') {
+      _lineage.push({ name_en: '', name_hi: '', birth_year: '', death_year: '', deceased: true });
+      return renderLineageEditor();
+    }
+    if (act === 'seed') {
+      _lineage = DEFAULT_LINEAGE.map((a) => ({ ...a, birth_year: a.birth_year, death_year: a.death_year == null ? '' : a.death_year }));
+      return renderLineageEditor();
+    }
+    if (act === 'save') await saveLineage(btn);
+  });
+}
+
+function lineagePayload() {
+  return _lineage.map((a) => {
+    const row = { name_en: (a.name_en || '').trim(), deceased: a.deceased !== false };
+    if (a.id) row.id = a.id;
+    row.name_hi = (a.name_hi || '').trim() || null;
+    row.birth_year = a.birth_year === '' || a.birth_year == null ? null : parseInt(a.birth_year, 10);
+    row.death_year = a.death_year === '' || a.death_year == null ? null : parseInt(a.death_year, 10);
+    return row;
+  });
+}
+
+async function saveLineage(btn) {
+  const errEl = document.getElementById('lin-error');
+  const okEl = document.getElementById('lin-ok');
+  errEl.hidden = true; okEl.hidden = true;
+
+  const payload = lineagePayload();
+  if (payload.some((a) => !a.name_en)) { errEl.textContent = 'Every generation needs an English name.'; errEl.hidden = false; return; }
+
+  btn.disabled = true;
+  try {
+    const data = await adminApi.setLineage(payload);
+    _lineage = (data.ancestors || []).map(toLineageRow);
+    _lineageFocal = data.focal || _lineageFocal;
+    renderLineageEditor();
+    const ok = document.getElementById('lin-ok');
+    ok.textContent = 'Lineage saved.';
+    ok.hidden = false;
+    await reloadPeople();
+    await reloadHistory();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.hidden = false;
+    btn.disabled = false;
+  }
 }
 
 // --- Entry point ---

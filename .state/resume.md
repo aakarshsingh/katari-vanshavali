@@ -155,14 +155,33 @@ _Pending feedback — Pivot R5 (2026-06-09), awaiting plan/approval:_
 5. **Admin-editable lineage line:** the 5-name ancestor line is fully editable from
    the admin panel (add/remove/reorder/edit) + seeded + 1840–1940 caption (Phase 2.26).
 
-**R5 progress (2026-06-09):** plan committed `b88f4ac`. **2.21A + 2.22A + 2.23 DONE**
-(life-status year toggles `tree.show_years_deceased` / `tree.show_birth_year_living`
-replacing the single `show_birth_year` + per-card hide flags; serializer keyed off
-`deceased`/`spouse_deceased`; settings + two admin toggles + route wiring; pending-edit
-diff view in the admin queue). **114/114 tests green**; verified on dev:mock. Staged,
-**not yet committed** (awaiting architect). **Remaining R5: 2.24** (no-op guard),
-**2.25** (admin edit-any-card), **2.26** (admin-editable lineage). 2.20 deferred.
-Next: `/as-p5-execute` 2.24 in a fresh session.
+**R5 progress (2026-06-09):** plan committed `b88f4ac`. **ALL R5 PHASES DONE: 2.21A,
+2.22A, 2.23, 2.24, 2.25, 2.26.** Summary:
+- **2.21A/2.22A** — life-status year toggles `tree.show_years_deceased` /
+  `tree.show_birth_year_living` (replaced the single `show_birth_year` + per-card
+  hide flags); serializer keyed off `deceased`/`spouse_deceased`; settings + two
+  admin toggles + route wiring.
+- **2.23** — pending-edit before→after diff in the admin queue (not raw JSON).
+- **2.24** — no-op guard (client + server): `changedKeys` in `persons.js` PATCH +
+  `changes.js` submit + `sidebar.js`; unchanged saves never enqueue/commit.
+- **2.25** — admin **People** editor (`/admin`): list → card edit → direct PATCH
+  (no-op-guarded); reuses GET /api/tree + PATCH /api/persons.
+- **2.26** — admin **Ancestor lineage** editor + new `GET/PUT /api/lineage`
+  (atomic chain reconcile; preserves single parent→child path to "Bade Lal Singh");
+  "Load 1840–1940 default" seed; era caption "1840 – 1940" on the public strip
+  (`tree-render.js` + `.ancestor-era` in `main.css`).
+
+**123/123 tests green** (8 suites; +`tests/lineage.test.js`). All verified end-to-end
+on dev:mock. **2.20** (manual local round-trip) still deferred by user.
+
+**STATE: all phases staged, NOT yet committed (awaiting architect).** The index holds
+2.24+2.25+2.26 changes plus this session's doc pass (README rewrite covering admin/
+moderation/field-visibility/lineage/dev:mock). **Next: architect commits, then
+`/as-p6-ship`** (Phase 2 feature cycle is functionally complete).
+
+New server surface this cycle: `/api/auth`, `/api/settings`, `/api/changes`,
+`/api/lineage` (+ `admin_user`, `change_request` tables). Admin SPA at `/admin.html`
+(`public/js/admin/`). `npm run dev:mock` boots in-memory pg-mem from `docs/seed.json`.
 
 ## How this app is built (orientation)
 

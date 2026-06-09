@@ -45,6 +45,23 @@ async function getChange(id) {
   return rows[0] || null;
 }
 
+// No-op guard (Phase 2.24): return only the payload keys that differ from the
+// current record. Mirrors persons.js — '' normalises to null and values compare
+// as strings. An empty result means a no-op edit that must not enter the queue.
+function changedKeys(current, payload) {
+  const norm = (v) => (v === '' || v === null || v === undefined ? null : v);
+  const out = {};
+  for (const k of Object.keys(payload || {})) {
+    let incoming = payload[k];
+    if (k === 'name_en' && typeof incoming === 'string') incoming = incoming.trim();
+    const a = norm(incoming);
+    const b = norm(current[k]);
+    if (a === null && b === null) continue;
+    if (a === null || b === null || String(a) !== String(b)) out[k] = payload[k];
+  }
+  return out;
+}
+
 // Inverse of an applied change, used by revert. Writes via applyChange.
 async function revertChange(client, cr) {
   const before = cr.before_snapshot || {};
@@ -85,6 +102,17 @@ router.post('/', async (req, res) => {
     if (payload && payload.parent_id !== undefined) safePayload.parent_id = payload.parent_id;
   }
   try {
+    // No-op guard: a person edit that matches the current record never enters the
+    // queue. Diff against the live row and bail out before inserting.
+    if (entity === 'person' && op_type === 'update' && target_id) {
+      const { rows } = await pool.query('SELECT * FROM person WHERE id = $1', [target_id]);
+      if (rows[0]) {
+        safePayload = changedKeys(rows[0], safePayload);
+        if (Object.keys(safePayload).length === 0) {
+          return res.status(200).json({ status: 'noop' });
+        }
+      }
+    }
     const tree = await pool.query('SELECT id FROM tree LIMIT 1');
     const tree_id = tree.rows[0] ? tree.rows[0].id : null;
     const row = await recordPending(null, {

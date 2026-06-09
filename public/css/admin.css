@@ -113,6 +113,59 @@ textarea { font-family: ui-monospace, 'Courier New', monospace; font-size: 0.8re
 .switch { flex-direction: row; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--ink); cursor: pointer; }
 .switch input { width: 16px; height: 16px; }
 
+/* ── People (admin edit-any-card) ── */
+#people-filter { width: 100%; margin-bottom: 10px; }
+.people-list { max-height: 340px; overflow-y: auto; }
+.people-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--chip-bg);
+}
+.people-row-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.people-name { font-weight: 700; font-size: 0.9rem; }
+
+.pe-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.pe-title { font-weight: 700; font-size: 0.95rem; }
+.pe-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin-bottom: 4px;
+}
+.pe-grid .switch { align-self: end; padding-bottom: 7px; justify-content: space-between; }
+@media (max-width: 720px) { .pe-grid { grid-template-columns: 1fr; } }
+
+/* ── Ancestor lineage editor ── */
+.lin-list { margin: 8px 0; }
+.lin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--chip-bg);
+}
+.lin-gen {
+  flex: 0 0 auto;
+  width: 22px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+}
+.lin-row input[type="text"] { flex: 1 1 0; min-width: 0; }
+.lin-row .lin-year { flex: 0 0 64px; width: 64px; }
+.lin-ops { flex: 0 0 auto; display: flex; gap: 4px; }
+.lin-mini { padding: 3px 8px; font-size: 0.8rem; align-self: center; }
+.lin-mini:disabled { opacity: 0.35; }
+.lin-focal { margin: 8px 0; font-size: 0.9rem; }
+.lin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+@media (max-width: 720px) {
+  .lin-row { flex-wrap: wrap; }
+  .lin-row input[type="text"] { flex: 1 1 40%; }
+}
+
 /* ── Pending queue cards ── */
 .q-card {
   border: 1px solid var(--border);
