@@ -105,13 +105,12 @@ async function _withExportLang(lang, fn) {
 // Tree overview page: fit the WHOLE tree onto a single A4 landscape page so it
 // always fits and no card is ever split. It's a shape/overview reference — the
 // flattened-card section that follows carries the legible per-person detail.
-function _appendTreeOverview(doc, canvas, w, h, today, treeTitle) {
+function _appendTreeOverview(doc, canvas, w, h) {
   const M = 10;        // page margin (mm)
-  const F = 8;         // footer band (mm)
   const A4W = 297;     // landscape A4
   const A4H = 210;
   const usableW = A4W - M * 2;
-  const usableH = A4H - M - F;
+  const usableH = A4H - M * 2;
 
   const ratio = Math.min(usableW / w, usableH / h);
   const imgW = w * ratio;
@@ -121,14 +120,11 @@ function _appendTreeOverview(doc, canvas, w, h, today, treeTitle) {
 
   // The doc's first page already exists (landscape A4) — draw onto it.
   doc.addImage(canvas.toDataURL('image/png'), 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`${treeTitle} - Tree overview - Exported ${today}`, M, A4H - 4);
 }
 
 // "Review (A4)" export: tiled card tree (landscape) + indented outline + lineage
 // lines (portrait), in one PDF. Reuses the already-rasterized tree canvas.
-async function _exportReview(canvas, w, h, tree, today) {
+async function _exportReview(canvas, w, h, tree) {
   const jsPDF = window.jspdf && window.jspdf.jsPDF;
   if (!jsPDF) throw new Error('PDF library not loaded');
   if (!window.ReviewSections) throw new Error('Review sections not loaded');
@@ -139,10 +135,10 @@ async function _exportReview(canvas, w, h, tree, today) {
   const titleEn = tree.title_en || tree.title_hi || 'Vanshavali';
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  _appendTreeOverview(doc, canvas, w, h, today, titleEn);
+  _appendTreeOverview(doc, canvas, w, h);
 
   const lang = (window.__state && window.__state.lang) || 'en';
-  await window.ReviewSections.appendFlattenedCards(doc, persons, relationships, lang, `${titleEn} — Flattened`, today);
+  await window.ReviewSections.appendFlattenedCards(doc, persons, relationships, lang, `${titleEn} — Flattened`);
 
   doc.save('vanshavali-review.pdf');
 }
@@ -163,10 +159,8 @@ async function doExport(opts) {
       return _rasterize(clone, title);
     });
 
-    const today = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-
     if (format === 'review') {
-      await _exportReview(canvas, w, h, tree, today);
+      await _exportReview(canvas, w, h, tree);
       return;
     }
 
@@ -220,11 +214,6 @@ async function doExport(opts) {
       // deflate compression shrinks the stream (the parchment field compresses
       // away) so the file stays small despite the high-resolution raster.
       doc.addImage(drawCanvas.toDataURL('image/png'), 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
-
-      // ASCII-only footer (jsPDF Helvetica cannot render Devanagari).
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text('Exported ' + today, margin, pageH - 3);
 
       doc.save('vanshavali.pdf');
     } else {

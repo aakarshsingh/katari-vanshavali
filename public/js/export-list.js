@@ -245,7 +245,7 @@ function _flattenGeometry(persons, relationships, lang) {
 }
 
 // Append the flattened-card section (A4 portrait, multi-page) to a jsPDF doc.
-async function appendFlattenedCards(doc, persons, relationships, lang, sectionTitle, today) {
+async function appendFlattenedCards(doc, persons, relationships, lang, sectionTitle) {
   if (!persons || !persons.length) return;
   const focalId = (typeof splitTree === 'function')
     ? splitTree(persons, relationships, 'Bade Lal Singh').focalId : null;
@@ -271,9 +271,11 @@ async function appendFlattenedCards(doc, persons, relationships, lang, sectionTi
     const drawW = pw - M * 2;
     const drawH = Math.min(drawW * (pageContentH / contentW), ph - M - F);
     doc.addImage(canvas.toDataURL('image/png'), 'PNG', M, M, drawW, drawH, undefined, 'FAST');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text(`Exported ${today} - ${sectionTitle} - Page ${pi + 1}/${pages.length}`, M, ph - 5);
+    if (pages.length > 1) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(`Page ${pi + 1}/${pages.length}`, M, ph - 5);
+    }
   }
 }
 

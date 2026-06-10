@@ -239,6 +239,11 @@ main {
   margin-bottom: 14px;
 }
 
+/* Controls that don't apply to the chosen format are disabled + greyed out. */
+#export-dialog fieldset:disabled {
+  opacity: 0.4;
+}
+
 #export-dialog legend {
   font-size: 0.8rem;
   font-weight: 700;

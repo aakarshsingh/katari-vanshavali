@@ -324,9 +324,27 @@ function wireExportDialog() {
     dialog.style.visibility = '';
   }
 
+  // Grey out controls that don't apply to the chosen format: page size +
+  // orientation are PDF-only; language is moot for the bilingual Review.
+  function syncExportControls() {
+    const form = document.getElementById('export-form');
+    if (!form) return;
+    const format = form.querySelector('[name="format"]:checked')?.value || 'png';
+    const fsPaper = document.getElementById('fs-paper');
+    const fsOrient = document.getElementById('fs-orient');
+    const fsLang = document.getElementById('fs-lang');
+    if (fsPaper) fsPaper.disabled = format !== 'pdf';
+    if (fsOrient) fsOrient.disabled = format !== 'pdf';
+    if (fsLang) fsLang.disabled = format === 'review';
+  }
+  document.getElementById('export-form')
+    ?.querySelectorAll('[name="format"]')
+    .forEach((el) => el.addEventListener('change', syncExportControls));
+
   exportBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (dialog.open) { dialog.close(); return; }
+    syncExportControls();
     positionNearButton();
   });
   // Close when clicking outside the popover
