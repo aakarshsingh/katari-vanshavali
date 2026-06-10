@@ -28,8 +28,10 @@ async function seedFromJson() {
   if (existing.rows[0]) {
     treeId = existing.rows[0].id;
   } else {
+    // Public year visibility ON by default in dev so logged-out exports show the
+    // publicly-visible years (mirrors a tree whose admin enabled these toggles).
     const t = await pool.query(
-      'INSERT INTO tree (title_en, title_hi) VALUES ($1, $2) RETURNING id',
+      'INSERT INTO tree (title_en, title_hi, show_years_deceased, show_birth_year_living) VALUES ($1, $2, TRUE, TRUE) RETURNING id',
       [seed.title_en || 'Katari Lineage', seed.title_hi || 'वंशावली']
     );
     treeId = t.rows[0].id;

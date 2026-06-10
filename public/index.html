@@ -264,7 +264,31 @@
           <input type="radio" name="format" value="png" checked /> PNG
         </label>
         <label class="radio-label">
-          <input type="radio" name="format" value="pdf" /> PDF (A3)
+          <input type="radio" name="format" value="pdf" /> PDF
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="format" value="review" /> Review (A4 &mdash; tree + lists)
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>Page size (PDF)</legend>
+        <label class="radio-label">
+          <input type="radio" name="paper" value="a1" /> A1 (594 &times; 841 mm)
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="paper" value="a2" checked /> A2 (420 &times; 594 mm)
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="paper" value="a3" /> A3 (297 &times; 420 mm)
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>Orientation (PDF)</legend>
+        <label class="radio-label">
+          <input type="radio" name="orient" value="landscape" checked /> Landscape (wide)
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="orient" value="portrait" /> Portrait (rotated 90&deg;)
         </label>
       </fieldset>
       <fieldset>
@@ -297,6 +321,7 @@
   <script src="/js/context-menu.js"></script>
   <script src="/vendor/jspdf.umd.min.js"></script>
   <script src="/vendor/canvg.umd.js"></script>
+  <script src="/js/export-list.js"></script>
   <script src="/js/export.js"></script>
   <script src="/js/main.js"></script>
   <script>lucide.createIcons();</script>

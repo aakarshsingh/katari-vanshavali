@@ -4,3 +4,6 @@ coverage/
 
 # Real family data — seeds the local dev DB only, never committed
 docs/seed.json
+
+# Local export smoke-test artifacts (may contain real names)
+export-smoke-out/

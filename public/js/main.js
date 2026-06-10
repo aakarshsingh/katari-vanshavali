@@ -340,8 +340,10 @@ function wireExportDialog() {
     const form = document.getElementById('export-form');
     const format = form.querySelector('[name="format"]:checked')?.value || 'png';
     const lang = form.querySelector('[name="lang"]:checked')?.value || 'en';
+    const paper = form.querySelector('[name="paper"]:checked')?.value || 'a2';
+    const orient = form.querySelector('[name="orient"]:checked')?.value || 'landscape';
     dialog.close();
-    if (typeof doExport === 'function') doExport({ format, lang });
+    if (typeof doExport === 'function') doExport({ format, lang, paper, orient });
   });
 }
 

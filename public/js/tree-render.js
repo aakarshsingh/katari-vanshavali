@@ -377,11 +377,14 @@ function renderEdges(svg, layoutMap, relationships, nodeH, yOffset, anchors) {
 function drawBox(group, boxX, y, h, box, gender, role, emphasis, depth) {
   const M = NodeMetrics.M;
   const isSpouse = role === 'spouse';
+  // An emphasized spouse (the focal patriarch's spouse) adopts the same
+  // bloodline generation palette as the patriarch instead of the uniform taupe.
+  const useSpousePalette = isSpouse && !emphasis;
   const gi = _genIdx(depth || 0);
-  const fill = isSpouse ? SPOUSE_FILL : GEN_FILL[gi];
-  const stroke = isSpouse ? SPOUSE_BORDER : GEN_BORDER[gi];
-  // Bloodline gets a thicker 2px border to pop against spouses; patriarch 2.5px.
-  const strokeWidth = isSpouse ? 1 : (emphasis ? 2.75 : 2);
+  const fill = useSpousePalette ? SPOUSE_FILL : GEN_FILL[gi];
+  const stroke = useSpousePalette ? SPOUSE_BORDER : GEN_BORDER[gi];
+  // Bloodline gets a thicker 2px border to pop against spouses; patriarch 2.75px.
+  const strokeWidth = useSpousePalette ? 1 : (emphasis ? 2.75 : 2);
 
   group.appendChild(svgEl('rect', {
     x: boxX, y, width: box.width, height: h,
@@ -513,7 +516,7 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId, dept
       addEditIcon(g, person.id, x + spec.person.box.width - 11, y + 11);
 
       if (spec.isCouple) {
-        drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse', false, depth);
+        drawBox(g, x + spec.spouse.offsetX, y, nodeH, spec.spouse.box, spec.spouse.gender, 'spouse', isPatriarch, depth);
         addEditIcon(g, person.id, x + spec.spouse.offsetX + spec.spouse.box.width - 11, y + 11);
         // Marriage connector (double line) between the two boxes
         const x1 = x + spec.person.box.width;

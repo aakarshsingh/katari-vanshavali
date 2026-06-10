@@ -7,7 +7,12 @@
 const PARCHMENT = '#FDFBF7';
 const INK_COLOR = '#1a1008';
 const EXPORT_FONT = "'Tiro Devanagari Hindi', Georgia, serif";
-const MAX_CANVAS_DIM = 8000; // stay well under browser canvas limits
+const MAX_CANVAS_DIM = 12000; // stay well under browser canvas limits
+const EXPORT_DPR = 3;         // supersample for crisp text/lines (scaled down if it would exceed the cap)
+// PDF paper long-side in mm (ISO A-series). The page is sized to the tree's
+// own aspect ratio at this long side, so a large tree fills the page edge to
+// edge instead of being letterboxed inside a fixed sheet.
+const PAPER_LONG_MM = { a1: 841, a2: 594, a3: 420 };
 
 // Clone the current #tree-svg for export: drop hint + hover affordances, reset
 // any zoom transform so we capture the full tree at natural resolution.
@@ -28,11 +33,23 @@ function _buildExportClone() {
   return clone;
 }
 
+// Return a new canvas with the source rotated 90° clockwise (dimensions swapped).
+function _rotateCanvas(src) {
+  const rc = document.createElement('canvas');
+  rc.width = src.height;
+  rc.height = src.width;
+  const ctx = rc.getContext('2d');
+  ctx.translate(rc.width / 2, rc.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  return rc;
+}
+
 async function _rasterize(clone, title) {
   const w = parseInt(clone.getAttribute('width'), 10) || 800;
   const h = parseInt(clone.getAttribute('height'), 10) || 600;
 
-  let dpr = 2;
+  let dpr = EXPORT_DPR;
   while (dpr > 1 && (w * dpr > MAX_CANVAS_DIM || h * dpr > MAX_CANVAS_DIM)) dpr -= 0.25;
 
   const canvas = document.createElement('canvas');
@@ -85,6 +102,51 @@ async function _withExportLang(lang, fn) {
   }
 }
 
+// Tree overview page: fit the WHOLE tree onto a single A4 landscape page so it
+// always fits and no card is ever split. It's a shape/overview reference — the
+// flattened-card section that follows carries the legible per-person detail.
+function _appendTreeOverview(doc, canvas, w, h, today, treeTitle) {
+  const M = 10;        // page margin (mm)
+  const F = 8;         // footer band (mm)
+  const A4W = 297;     // landscape A4
+  const A4H = 210;
+  const usableW = A4W - M * 2;
+  const usableH = A4H - M - F;
+
+  const ratio = Math.min(usableW / w, usableH / h);
+  const imgW = w * ratio;
+  const imgH = h * ratio;
+  const imgX = (A4W - imgW) / 2;
+  const imgY = M + (usableH - imgH) / 2;
+
+  // The doc's first page already exists (landscape A4) — draw onto it.
+  doc.addImage(canvas.toDataURL('image/png'), 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`${treeTitle} - Tree overview - Exported ${today}`, M, A4H - 4);
+}
+
+// "Review (A4)" export: tiled card tree (landscape) + indented outline + lineage
+// lines (portrait), in one PDF. Reuses the already-rasterized tree canvas.
+async function _exportReview(canvas, w, h, tree, today) {
+  const jsPDF = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDF) throw new Error('PDF library not loaded');
+  if (!window.ReviewSections) throw new Error('Review sections not loaded');
+
+  const state = window.__state || {};
+  const persons = state.persons || [];
+  const relationships = state.relationships || [];
+  const titleEn = tree.title_en || tree.title_hi || 'Vanshavali';
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  _appendTreeOverview(doc, canvas, w, h, today, titleEn);
+
+  const lang = (window.__state && window.__state.lang) || 'en';
+  await window.ReviewSections.appendFlattenedCards(doc, persons, relationships, lang, `${titleEn} — Flattened`, today);
+
+  doc.save('vanshavali-review.pdf');
+}
+
 async function doExport(opts) {
   const format = (opts && opts.format) || 'png';
   const lang = (opts && opts.lang) || 'en';
@@ -103,32 +165,66 @@ async function doExport(opts) {
 
     const today = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
 
+    if (format === 'review') {
+      await _exportReview(canvas, w, h, tree, today);
+      return;
+    }
+
     if (format === 'pdf') {
       const jsPDF = window.jspdf && window.jspdf.jsPDF;
       if (!jsPDF) throw new Error('PDF library not loaded');
 
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-      const margin = 12;
-      const footerH = 10;
+      const longMM = PAPER_LONG_MM[(opts && opts.paper)] || PAPER_LONG_MM.a2;
+      const margin = 8;   // uniform border around the tree
+      const footerH = 8;  // bottom band for the exported-date line
 
-      // Title is baked into the image (Devanagari-safe); place the image full-width.
-      const availW = pageW - margin * 2;
-      const availH = pageH - margin - footerH;
-      const ratio = Math.min(availW / w, availH / h);
-      const imgW = w * ratio;
-      const imgH = h * ratio;
+      // Portrait option: turn the tree 90° so a wide tree runs down a tall page —
+      // prints large on a standard portrait sheet and reads when the page is
+      // turned. The rotated raster becomes (h × w); landscape keeps (w × h).
+      const rotate = (opts && opts.orient) === 'portrait';
+      const drawCanvas = rotate ? _rotateCanvas(canvas) : canvas;
+      const ew = rotate ? h : w; // effective (displayed) raster dimensions
+      const eh = rotate ? w : h;
+
+      // The chosen paper dimension is the page's LONG side; the tree fills that
+      // long axis (minus margins) for maximum zoom, and the page's SHORT side is
+      // sized to wrap the tree exactly. The draw area then matches the displayed
+      // aspect ratio, so the image fills it with no wasted whitespace on any side.
+      const effLandscape = ew >= eh;
+      let pageW;
+      let pageH;
+      if (effLandscape) {
+        pageW = longMM;
+        pageH = (pageW - margin * 2) * (eh / ew) + margin + footerH;
+      } else {
+        pageH = longMM;
+        pageW = (pageH - margin - footerH) * (ew / eh) + margin * 2;
+      }
+
+      const doc = new jsPDF({
+        orientation: effLandscape ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: [pageW, pageH],
+      });
+      // Re-read the realized page (jsPDF may normalize) and fit the image into the
+      // margin box; aspect matches, so this fills edge-to-edge with no slack.
+      pageW = doc.internal.pageSize.getWidth();
+      pageH = doc.internal.pageSize.getHeight();
+      const ratio = Math.min((pageW - margin * 2) / ew, (pageH - margin - footerH) / eh);
+      const imgW = ew * ratio;
+      const imgH = eh * ratio;
       const imgX = (pageW - imgW) / 2;
       const imgY = margin;
 
-      // JPEG keeps the PDF small; parchment background compresses cleanly.
-      doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', imgX, imgY, imgW, imgH);
+      // Lossless PNG keeps text and hairlines crisp (JPEG fuzzed them); 'FAST'
+      // deflate compression shrinks the stream (the parchment field compresses
+      // away) so the file stays small despite the high-resolution raster.
+      doc.addImage(drawCanvas.toDataURL('image/png'), 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
 
       // ASCII-only footer (jsPDF Helvetica cannot render Devanagari).
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.text('Exported ' + today, margin, pageH - 5);
+      doc.text('Exported ' + today, margin, pageH - 3);
 
       doc.save('vanshavali.pdf');
     } else {
