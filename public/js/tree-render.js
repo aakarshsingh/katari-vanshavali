@@ -83,7 +83,7 @@ function renderTree(state) {
   }
 
   // Per-node widths (couple units are wider) drive the layout spacing.
-  const widthOf = (typeof NodeMetrics !== 'undefined') ? NodeMetrics.widthMap(persons, lang) : null;
+  const widthOf = (typeof NodeMetrics !== 'undefined') ? NodeMetrics.widthMap(persons, lang, focalId) : null;
 
   // Reingold–Tilford tidy layout (per-depth contours, variable widths) rooted at
   // the focal person — tighter packing than the old grouped layout.
@@ -111,7 +111,7 @@ function renderTree(state) {
   const focalPos = focalId ? layoutMap[focalId] : null;
   let focalCenterX = PADDING + (focalPos ? focalPos.x + focalPos.width / 2 : maxX / 2);
   if (focalPos && typeof NodeMetrics !== 'undefined' && personMap[focalId]) {
-    const fs = NodeMetrics.cardSpec(personMap[focalId], lang);
+    const fs = NodeMetrics.cardSpec(personMap[focalId], lang, true);
     if (fs.isCouple) {
       focalCenterX = PADDING + focalPos.x + fs.person.box.width + NodeMetrics.M.COUPLE_GAP / 2;
     }
@@ -145,7 +145,7 @@ function renderTree(state) {
     const person = personMap[pos.id];
     const baseX = PADDING + pos.x;
     if (metricsAvail && person) {
-      const spec = NodeMetrics.cardSpec(person, lang);
+      const spec = NodeMetrics.cardSpec(person, lang, pos.id === focalId);
       const personCenter = baseX + spec.person.box.width / 2;
       anchors[pos.id] = {
         attachX: personCenter,
@@ -501,7 +501,7 @@ function renderNodes(svg, layout, personMap, lang, nodeH, yOffset, focalId, dept
     });
 
     if (metrics) {
-      const spec = metrics.cardSpec(person, lang);
+      const spec = metrics.cardSpec(person, lang, isPatriarch);
 
       // Couple group container: a subtle pill behind both boxes so the pair
       // reads as one family unit (drawn first, sits behind the boxes).
