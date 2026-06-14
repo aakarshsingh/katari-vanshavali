@@ -411,11 +411,12 @@ function drawBox(group, boxX, y, h, box, gender, role, emphasis, depth) {
 
   box.nameLines.forEach((line, i) => {
     const cls = role === 'person' && i === 0 ? 'name-primary' : 'name-line';
+    // The focal root couple (first node) is emphasized: 2pt larger + bold.
     const t = svgEl('text', {
       class: cls,
       x: cx, y: top + i * M.LINE_NAME + M.LINE_NAME / 2,
       'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': 15, 'font-weight': 500, fill: INK,
+      'font-size': emphasis ? 17 : 15, 'font-weight': emphasis ? 'bold' : 500, fill: INK,
     });
     t.textContent = line;
     t.setAttribute('font-family', FONT);
